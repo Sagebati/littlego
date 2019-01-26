@@ -4,6 +4,6 @@ Shusaku
 Go IA.
 
 
-##Dependencies
+## Dependencies
 
 rusty_goban
