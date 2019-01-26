@@ -17,4 +17,5 @@ g = IGame(19)
 for i in range(0, 400):
     l = g.legals()
     g.play(random.choice(l))
+    print(g.goban())
     g.display()
