@@ -7,7 +7,7 @@ setup(name='shusaku',
       license='GPL',
       packages=['shusaku'],
       install_requires=[
-          'rusty_goban',
+          'libshusaku',
       ],
       zip_safe=False
   )
