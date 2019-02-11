@@ -20,6 +20,7 @@ class Player(Enum):
     Black = False,
 
 
+g = IGame(19)
 for i in range(0, 500):
     l = g.legals()
     g.play(random.choice(l))
