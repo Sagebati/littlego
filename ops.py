@@ -220,6 +220,7 @@ def SGF_file_to_dataset(file_name):
 				y = letter_to_number(content[i+1+h][1])
 				g.play((x, y))
 				g.skip()
+			g.skip()
 			g.display()
 		# Moves
 		elif elem == "W" or elem == "B":
@@ -253,6 +254,7 @@ def SGF_file_to_dataset(file_name):
 	print(file_name)
 	print(winner)
 	print(g.outcome())
+	input()
 	
 	return states, policies, values	
 
@@ -294,5 +296,6 @@ def SGF_folder_rule_filter(folder_name, rule_filter):
 
 if __name__ == '__main__':
 	#SGF_folder_rule_filter(sys.argv[1], "Chinese")
-	SGF_folder_to_dataset(sys.argv[1])
+	#SGF_folder_to_dataset(sys.argv[1])
+	SGF_file_to_dataset(sys.argv[1])
 	pass
