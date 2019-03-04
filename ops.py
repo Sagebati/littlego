@@ -1,3 +1,6 @@
+import sys
+import os
+from libshusaku import IGame
 import tensorflow as tf
 import numpy as np
 from tensorflow.contrib.layers import l2_regularizer, xavier_initializer, fully_connected, flatten
@@ -137,3 +140,159 @@ def dirichlet_noise(plane, alpha, epsilon):
 	alphas = np.full(plane.shape, alpha)
 	out = (1-epsilon) * out + epsilon * np.random.dirichlet(alphas)
 	return out
+	
+def data_augmentation(planes, policy, board_size):
+	out_planes = []
+	out_policies = []
+	
+	planes = np.copy(planes)
+	p = np.copy(policy)
+	p_pass = p[0][-1]
+	t_p = np.reshape(p[0][:-1], (board_size, board_size))
+	t_plane = np.reshape(np.copy(planes[:,:,:,0]), (board_size, board_size))
+	for reflect in (False, True):
+		for k_rotate in range(0,4):
+			# Rotate/reflect policy out
+			new_p = dihedral_transformation(t_p, k_rotate, reflect)
+			new_p = np.append(new_p, p_pass)
+			new_p = np.reshape(new_p, (1, board_size*board_size+1))
+			
+			# Rotate/reflect planes
+			new_plane = dihedral_transformation(t_plane, k_rotate, reflect)
+			new_plane = np.reshape(new_plane, (1, board_size, board_size))
+			planes[:,:,:,0] = new_plane
+			
+			out_planes.append(np.copy(planes))
+			out_policies.append(np.copy(new_p))
+				
+	return out_planes, out_policies
+
+def letter_to_number(letter):
+	return ord(letter) - 97
+
+def goban_1D_to_goban_2D(goban, size):
+	return np.reshape(goban, (size, size))
+
+#------------------------------------------
+#---------------- SGF File ----------------
+#------------------------------------------
+
+def SGF_file_parser(file_name):
+	fichier = open(file_name)
+	content = fichier.read()
+	fichier.close()
+	content = content.replace("[]", '\n  \n').replace('[', '\n').replace(']', '\n').replace(';', '\n')
+	content = content.split("\n")
+	content = list(filter(lambda a: a != '' and a != ')' and a != '(', content))
+	return content
+
+def SGF_file_to_dataset(file_name):
+	content = SGF_file_parser(file_name)
+	
+	states = []
+	policies = []
+	values = [] 
+	
+	size = 19
+	handicap = 0
+	winner = 2
+	player_turn = 0
+	
+	g = IGame(size)
+	
+	for i in range(len(content)):
+		elem = content[i]
+		# Board size
+		if elem == "SZ":
+			size = int(content[i+1])
+			g = IGame(size)
+		# Handicap
+		elif elem == "HA":
+			handicap = int(content[i+1])
+		# Result
+		elif elem == "RE":
+			winner = content[i+1].split("+")[0]
+			winner = 0 if winner == "B" else 1 if winner == "W" else 2
+		# Handicap moves
+		elif elem == "AW" or elem == "AB":
+			for h in range(handicap):
+				x = letter_to_number(content[i+1+h][0])
+				y = letter_to_number(content[i+1+h][1])
+				g.play((x, y))
+				g.skip()
+			g.display()
+		# Moves
+		elif elem == "W" or elem == "B":
+			# Make state
+			goban = goban_1D_to_goban_2D(g.goban(), size)		
+			# Make policy
+			policy = np.zeros(size*size+1)
+			if content[i+1] == '  ':
+				move = size*size
+			else:
+				x = letter_to_number(content[i+1][0])
+				y = letter_to_number(content[i+1][1])			
+				move = x * size + y
+			policy[move] = 1
+			# Make value
+			player = 0 if elem == "B" else 1
+			value = 0 if winner == 2 else 1 if winner == player else -1
+			
+			# Save data
+			states.append(goban)
+			policies.append(policy)
+			values.append(value)
+			
+			# Play move
+			if move == size*size:
+				g.skip()
+			else:
+				g.play((x, y))
+			g.display()
+	
+	print(file_name)
+	print(winner)
+	print(g.outcome())
+	
+	return states, policies, values	
+
+def SGF_folder_to_dataset(folder_name):
+	all_states = []
+	all_policies= []
+	all_values = []
+	
+	for file_name in os.listdir(folder_name):
+		if file_name[-4:] == ".sgf":		
+			file_name = folder_name+file_name
+			states, policies, values = SGF_file_to_dataset(file_name)
+			for state in states:
+				all_states.append(state)
+			for policy in policies:
+				all_policies.append(policy)
+			for value in values:
+				all_values.append(value)
+
+	np.savez(folder_name, 
+			states = all_states,
+			policies = all_policies,
+			values = all_values)
+			
+def SGF_folder_rule_filter(folder_name, rule_filter):
+	for file_name in os.listdir(folder_name):
+		if file_name[-4:] == ".sgf":
+			is_filter = True
+			file_name = folder_name+file_name			
+			#print("process {}".format(file_name))
+			content = SGF_file_parser(file_name)
+			for i in range(len(content)):
+				elem = content[i]
+				if elem == "RU" and content[i+1] == rule_filter:
+					is_filter = False
+			if is_filter:
+				print("remove {}".format(file_name))
+				os.remove(file_name)
+
+if __name__ == '__main__':
+	#SGF_folder_rule_filter(sys.argv[1], "Chinese")
+	SGF_folder_to_dataset(sys.argv[1])
+	pass

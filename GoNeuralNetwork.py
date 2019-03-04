@@ -25,7 +25,7 @@ input_planes = 2
 filters = 64
 kernel_size = 3 # F
 stride = 1 # S
-num_blocks = 2 # each block has 2 conv layers
+num_blocks = 5 # each block has 2 conv layers
 
 # Policy head parameters
 p_filters = 2
@@ -100,7 +100,8 @@ class GoNeuralNetwork():
 											   self.input_shape,
 											   [self.policy_size],
 											   useLSTM,
-											   trace_length)
+											   trace_length,
+											   prioritize=True)
 		print("Initialized - SARST Replay Memory")
 		
 		self.neural_network()
@@ -122,7 +123,7 @@ class GoNeuralNetwork():
 		# Ready to train
 		self.session.run(init_op)
 	
-	# This function will be used to build both the prediction network as well as the target network
+	# This function will be used to build neural network
 	def build_network(self, scope_name):	
 		net_shape = [None] + [s for s in self.input_shape]
 		print(net_shape)
@@ -290,6 +291,7 @@ class GoNeuralNetwork():
 	
 	def get_move(self, planes, player_turn, legals):
 		self.run_minibatch()
+		# TODO - Dihedral Transformation on planes (and reverse transformation for p and v)
 		p, v = self.feed_forward(planes)
 		
 		# Policy Improvement Operator
@@ -310,29 +312,16 @@ class GoNeuralNetwork():
 		self.memory_policies.append(policy)
 		self.player_turns.append(player_turn)
 		
-	def save_in_self_memory(self, planes, p, player_turn):
+	def save_in_self_memory(self, planes, policy, player_turn):
 		#self.save_one_in_self_memory(planes, p, player_turn)
 		
-		# Data augmentation
-		planes = np.copy(planes)
-		p = np.copy(p)
-		p_pass = p[0][-1]
-		t_p = np.reshape(p[0][:-1], (self.board_size, self.board_size))
-		t_plane = np.reshape(np.copy(planes[:,:,:,0]), (self.board_size, self.board_size))
-		for reflect in (False, True):
-			for k_rotate in range(0,4):
-				# Rotate/reflect policy out
-				new_p = ops.dihedral_transformation(t_p, k_rotate, reflect)
-				new_p = np.append(new_p, p_pass)
-				new_p = np.reshape(new_p, (1, self.board_size*self.board_size+1))
-				
-				# Rotate/reflect planes
-				new_plane = ops.dihedral_transformation(t_plane, k_rotate, reflect)
-				new_plane = np.reshape(new_plane, (1, self.board_size, self.board_size))
-				planes[:,:,:,0] = new_plane
-				
-				# Save to self memory
-				self.save_one_in_self_memory(planes, new_p, player_turn)
+		# Data augmentation		
+		out_planes, out_policies = ops.data_augmentation(planes, policy, self.board_size)		
+		for i in range(len(out_planes)):
+			new_planes = out_planes[i]
+			new_policy = out_policies[i]
+			# Save to self memory
+			self.save_one_in_self_memory(new_planes, new_policy, player_turn)
 	
 	def save_in_replay_memory(self, winner):
 		for i in range(len(self.memory_states)):
@@ -340,7 +329,7 @@ class GoNeuralNetwork():
 			policy = self.memory_policies[i]
 			player_turn = self.player_turns[i]
 			value = 0 if winner == 2 else 1 if player_turn == winner else -1
-			self.replay_memory.add_to_memory(state, policy, value)
+			self.replay_memory.add_to_memory(state, policy, value, self.total_iterations)
 		self.memory_states = []
 		self.memory_policies = []
 		self.player_turns = []

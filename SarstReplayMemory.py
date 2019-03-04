@@ -1,5 +1,6 @@
 #!/usr/bin/env
 import numpy as np
+from PrioritizedSumTree import PrioritizedSumTree
 
 #TODO - implement Tiered memories similar to cache levels in a processor
 #TODO - try out some of the smarter replay choosing methods on my scribbles of junk
@@ -10,7 +11,7 @@ class SarstReplayMemory:
 	from each of the four (s, p, v) arrays. This sampling is done by using a prioritized sum tree, which will pick
 	samples that have high rewards associated with them under the assumption that they are more important.
 	"""
-	def __init__(self, capacity, state_size, policy_size, useLSTM, trace_length):
+	def __init__(self, capacity, state_size, policy_size, useLSTM, trace_length, prioritize=False, priority_epsilon=0.001, priority_alpha=0.5):
 		"""
 		Args:
 			Capacity - int - How many samples to hold in the array. Samples all exist for exactly the same amount of time
@@ -23,10 +24,16 @@ class SarstReplayMemory:
 		self.memory_capacity = capacity #max size
 		self.memory_size = 0
 		self.memory_pointer_index = 0
-		self.total_priority_sum = 0.
 		
 		self.useLSTM = useLSTM
 		self.trace_length = trace_length
+
+		self.prioritize = prioritize
+		self.total_priority_sum = 0.
+		if prioritize:
+			self.priority_epsilon = priority_epsilon
+			self.priority_alpha = priority_alpha
+			self.priority_tree = PrioritizedSumTree(capacity)
 		
 		# Create the SARS memory
 		self.state_size = state_size
@@ -46,6 +53,8 @@ class SarstReplayMemory:
 			memory_pointer_index = self.memory_pointer_index,
 			useLSTM = self.useLSTM,
 			trace_length = self.trace_length)
+		if self.prioritize:
+			self.priority_tree.save_sumTree()			
 		print("=== Memory saved as \"{}.npz\" ===".format(memoryFile))
 	
 	def restore_memory(self, memoryFile):
@@ -56,11 +65,13 @@ class SarstReplayMemory:
 		self.memory_size = npzFile['memory_size']		
 		self.memory_pointer_index = npzFile['memory_pointer_index']
 		self.useLSTM = npzFile['useLSTM']
-		self.trace_length = npzFile['trace_length']			
+		self.trace_length = npzFile['trace_length']
+		if self.prioritize:
+			self.priority_tree.restore_sumTree()				
 		print("=== Memory restored from \"{}.npz\" ===".format(memoryFile))
 		
 		
-	def add_to_memory(self, state, policy, value):
+	def add_to_memory(self, state, policy, value, priority):
 		"""
 		Adds new value to s, p, v arrays when new observation is made.
 		Write all the information to the current pointer in memory
@@ -68,6 +79,13 @@ class SarstReplayMemory:
 		self.states[self.memory_pointer_index] = state
 		self.policies[self.memory_pointer_index] = policy
 		self.values[self.memory_pointer_index] = value
+
+		# if using a prioritized memory, need to add it the sample to that as well
+		if self.prioritize:	
+			# calculates a priority value, and adds it to the tree. Note we NEED absolute value
+			# for the correctness of the sum tree
+			sample_priority = (abs(priority) + self.priority_epsilon)**self.priority_alpha
+			self.priority_tree.add(sample_priority)
 
 		# we have to increment the memory pointer index so we write to the correct spot
 		# note that the prioritized sum tree does this on its own, which is why we dont have it explicitly done above
@@ -88,10 +106,23 @@ class SarstReplayMemory:
 			raise ValueError("Cannot read a batch of %d samples when memory only has %d samples stored" % (batch_size, self.memory_size))
 
 		chosen_sarst_indexes = []
-		
-		# choose randomly
-		while len(chosen_sarst_indexes) < batch_size:
-			chosen_sarst_indexes.append(np.random.randint(low=0, high=self.memory_size))
+
+		# either use the prioritized sum tree to return samples based on their reward values so that more important ones
+		# are chosen, or do it randomly
+		if self.prioritize:
+			while len(chosen_sarst_indexes) < batch_size:
+				chosen_idx, relative_priority = self.priority_tree.get()
+				#print("chose replay idx %d with priority %.4f" % (chosen_idx, relative_priority))
+				
+				# the tree starts at 0, therefore the leaves start at half of the tree size
+				# we need to convert to the index of the sarst memory by subtracting the capcacity+1
+				chosen_idx -= self.memory_capacity-1
+				#print("this chosen reward should read %.4f\n" % (abs(self.rewards[chosen_idx]) + self.priority_epsilon)**self.priority_alpha)
+				chosen_sarst_indexes.append(chosen_idx)
+		else:		
+			# choose randomly
+			while len(chosen_sarst_indexes) < batch_size:
+				chosen_sarst_indexes.append(np.random.randint(low=0, high=self.memory_size))
 
 		if self.useLSTM:
 			states = []

@@ -38,7 +38,7 @@ board_size = 13
 
 goAgent = GoNNAgent(board_size)
 
-turn_max = 666
+turn_max = int(board_size ** 2 * 2.5)
 
 for i in range(1000):
 
