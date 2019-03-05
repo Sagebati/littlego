@@ -140,7 +140,8 @@ def dirichlet_noise(plane, alpha, epsilon):
 	alphas = np.full(plane.shape, alpha)
 	out = (1-epsilon) * out + epsilon * np.random.dirichlet(alphas)
 	return out
-	
+
+# Data augmentation from raw neural network inputs (with 2 planes)	
 def data_augmentation(planes, policy, board_size):
 	out_planes = []
 	out_policies = []
@@ -192,11 +193,11 @@ def SGF_file_to_dataset(file_name):
 	states = []
 	policies = []
 	values = [] 
+	player_turn = []
 	
 	size = 19
 	handicap = 0
 	winner = 2
-	player_turn = 0
 	
 	g = IGame(size)
 	
@@ -220,8 +221,8 @@ def SGF_file_to_dataset(file_name):
 				y = letter_to_number(content[i+1+h][1])
 				g.play((x, y))
 				g.skip()
-			g.skip()
-			g.display()
+			g.skip() # Necessary because it's up to white to play
+			#g.display()
 		# Moves
 		elif elem == "W" or elem == "B":
 			# Make state
@@ -243,48 +244,54 @@ def SGF_file_to_dataset(file_name):
 			states.append(goban)
 			policies.append(policy)
 			values.append(value)
+			player_turn.append(player)
 			
 			# Play move
 			if move == size*size:
 				g.skip()
 			else:
 				g.play((x, y))
-			g.display()
+			#g.display()
 	
 	print(file_name)
 	print(winner)
 	print(g.outcome())
-	input()
 	
-	return states, policies, values	
+	return states, policies, values, player_turn
 
 def SGF_folder_to_dataset(folder_name):
 	all_states = []
 	all_policies= []
 	all_values = []
+	all_turn = []
 	
+	i = 0
 	for file_name in os.listdir(folder_name):
-		if file_name[-4:] == ".sgf":		
+		if file_name[-4:] == ".sgf":
+			print(i)
+			i += 1
 			file_name = folder_name+file_name
-			states, policies, values = SGF_file_to_dataset(file_name)
+			states, policies, values, player_turn = SGF_file_to_dataset(file_name)				
 			for state in states:
 				all_states.append(state)
 			for policy in policies:
 				all_policies.append(policy)
 			for value in values:
 				all_values.append(value)
-
-	np.savez(folder_name, 
+			for turn in player_turn:
+				all_turn.append(turn)
+					
+	np.savez(folder_name+"dataset", 
 			states = all_states,
 			policies = all_policies,
-			values = all_values)
+			values = all_values,
+			player_turn = all_turn)
 			
 def SGF_folder_rule_filter(folder_name, rule_filter):
 	for file_name in os.listdir(folder_name):
 		if file_name[-4:] == ".sgf":
 			is_filter = True
-			file_name = folder_name+file_name			
-			#print("process {}".format(file_name))
+			file_name = folder_name+file_name
 			content = SGF_file_parser(file_name)
 			for i in range(len(content)):
 				elem = content[i]
@@ -296,6 +303,6 @@ def SGF_folder_rule_filter(folder_name, rule_filter):
 
 if __name__ == '__main__':
 	#SGF_folder_rule_filter(sys.argv[1], "Chinese")
-	#SGF_folder_to_dataset(sys.argv[1])
-	SGF_file_to_dataset(sys.argv[1])
+	SGF_folder_to_dataset(sys.argv[1])
+	#SGF_file_to_dataset(sys.argv[1])
 	pass

@@ -77,12 +77,13 @@ class GoNeuralNetwork():
 		self.input_shape = [self.board_size, self.board_size, input_planes]
 		self.policy_size = self.input_size + 1
 
-		self.total_iterations = 0
 		self.network_inputs = {}
 		self.memory_states = []
 		self.memory_policies = []
 		self.player_turns = []
 		self.memory_loss = []
+		self.total_iterations = 0
+		self.temp_loss = 0
 		# ----------------------------------------
 
 		with tf.device('/gpu:0'):
@@ -91,7 +92,7 @@ class GoNeuralNetwork():
 				self.initNetwork(session)
 
 		self.saver = tf.train.Saver() #tf.all_variables()		
-		self.restore_model()
+		#self.restore_model()
 	
 	def initNetwork(self, tf_session):
 		self.session = tf_session # a tensorflow session	
@@ -208,28 +209,40 @@ class GoNeuralNetwork():
 				self.optimizer = opt.apply_gradients(capped_gvs)
 			else:
 				self.optimizer = opt.minimize(self.loss_op)
+			
+			# Accuracies
+			policy_correct_prediction = tf.equal(tf.argmax(self.policy_out_prob, 1), tf.argmax(self.target_p, 1))
+			self.policy_accuracy = tf.reduce_mean(tf.cast(policy_correct_prediction, "float"))
+			self.value_accuracy = (2. - tf.reduce_mean(tf.abs(tf.subtract(self.target_v, self.value_out)))) / 2.
 
 	# ----- Minibatch -----
 	def run_minibatch(self):
 		if self.replay_memory.memory_size >= batch_size * trace_length:
 			state, target_p, target_v = self.replay_memory.get_batch_sample(batch_size)
-			_, loss = self.session.run(
-				[self.optimizer, self.loss_op],
-				{self.network_inputs['GoNeuralNetwork'] : state,
-				self.target_v : target_v,	 # and the targets in the optimizer
-				self.target_p : target_p,
-				self.is_train : True,
-				self.global_step : self.total_iterations # and update our global step.
-			})
+			loss, _, _ = self.train(state, target_p, target_v, self.total_iterations)
 			if self.total_iterations % report_frequency == 0:
 				print("\nMinibatch {} : \nloss = {}".format(self.total_iterations, loss))
 				print("memory = {}".format(self.replay_memory.memory_size))
 				print()
 			self.total_iterations += 1
+			self.temp_loss += loss			
 			if self.total_iterations % save_model_frequency == 0:
-				self.memory_loss.append(loss)			
+				#self.memory_loss.append(self.temp_loss / save_model_frequency)
+				np.append(self.memory_loss, self.temp_loss / save_model_frequency)
+				self.temp_loss = 0
 				self.save_model()
 
+	def train(self, state, target_p, target_v, epoch):
+		_, loss, p_acc, v_acc = self.session.run(
+			[self.optimizer, self.loss_op, self.policy_accuracy, self.value_accuracy],
+			{self.network_inputs['GoNeuralNetwork'] : state,
+			self.target_v : target_v,	 # and the targets in the optimizer
+			self.target_p : target_p,
+			self.is_train : True,
+			self.global_step : epoch # and update our global step.
+		})
+		return loss, p_acc, v_acc
+	
 	# ----- Feed Forward (without training) -----
 	def feed_forward(self, state):
 		p, v = self.session.run(
@@ -248,6 +261,17 @@ class GoNeuralNetwork():
 			self.global_step : self.total_iterations # and update our global step. 
 		})
 		return v
+		
+	def feed_forward_accuracies(self, state, target_p, target_v, epoch):
+		p_acc, v_acc = self.session.run(
+			[self.policy_accuracy, self.value_accuracy],
+			{self.network_inputs['GoNeuralNetwork'] : state,
+			self.target_v : target_v,	 # and the targets in the optimizer
+			self.target_p : target_p,
+			self.is_train : False,
+			self.global_step : epoch # and update our global step.
+		})	
+		return p_acc, v_acc
 	
 	# ----- Policy Improvement Operators -----
 	def remove_illegal(self, legals, p):
@@ -335,6 +359,7 @@ class GoNeuralNetwork():
 		self.player_turns = []
 		
 	def save_model(self):
+		# TODO - save with model name
 		# Save model
 		self.saver.save(self.session, modelCheckpoint)
 		print("=== Model saved as \"{}\" ===".format(modelCheckpoint))
@@ -360,6 +385,7 @@ class GoNeuralNetwork():
 			# Restore parameters
 			npzFile = np.load("{}.npz".format(hyperparametersFile))
 			self.total_iterations = npzFile['total_iterations']
+			self.memory_loss = npzFile['memory_loss']
 			print("=== Parameters restored from \"{}.npz\" ===\n".format(hyperparametersFile))
 		"""else:
 			self.copy_prediction_parameters_to_target_network()"""

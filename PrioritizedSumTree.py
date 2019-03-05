@@ -1,6 +1,6 @@
 import numpy as np
 
-sumTreeFile = "./modelSumTree.dqn"
+sumTreeFile = "./modelSumTree.gonn"
 
 class PrioritizedSumTree:
 	"""
