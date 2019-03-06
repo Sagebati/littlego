@@ -19,7 +19,14 @@ class GoNNAgent():
 		return goban
 
 	def get_move(self, goban, player_turn, legals):
-		goban = self.goban_to_nn_state(goban)
+		#goban = self.goban_to_nn_state(goban)
+		if player_turn == 1:
+			goban = tuple(reversed(goban))
+		goban = np.array(goban)
+		g0 = self.goban_to_nn_state(goban[0])
+		g1 = self.goban_to_nn_state(goban[1])
+		goban = np.concatenate([g0, g1], axis=3)
+		
 		player_feature_plane = np.full([self.board_size, self.board_size], player_turn)
 		player_feature_plane = self.goban_to_nn_state(player_feature_plane)
 		planes = np.concatenate([goban, player_feature_plane], axis=3)
@@ -27,15 +34,11 @@ class GoNNAgent():
 		p, v = self.neural_network.get_move(planes, player_turn, legals)
 		move = np.argmax(p)
 		return move
-	
-	def move_scalar_to_tuple(self, move):
-		t_move = (int(move / self.board_size) , move % self.board_size)
-		return t_move
 		
 	def end_game(self, winner):
 		self.neural_network.save_in_replay_memory(winner)
 		
-	def supervised_training(self, dataset, k_fold = 0):
+	def supervised_training(self, dataset, k_fold = 0):		
 		# Training parameters
 		epoch = 10000
 		report_frequency = 5
@@ -91,7 +94,7 @@ class GoNNAgent():
 		shuffle(temp)
 		states, policies, values = zip(*temp)
 		states, policies, values = np.array(states), np.array(policies), np.array(values)	
-		
+
 		# Data splitting
 		print("Data splitting")
 		len_dataset = len(values)		
@@ -165,9 +168,10 @@ if __name__ == '__main__':
 			total_turn = 0
 			while not g.over():
 				print("game {} - total_turn = {}".format(i, total_turn))
-				goban = g.goban()
+				#goban = g.goban()
+				goban = g.goban_split()
 				move = goAgent.get_move(goban, total_turn % 2, g.legals())
-				t_move = goAgent.move_scalar_to_tuple(move)
+				t_move = ops.move_scalar_to_tuple(move, board_size)
 				if t_move in g.legals():
 					print(t_move)			
 					g.play(t_move)

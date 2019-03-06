@@ -141,16 +141,20 @@ def dirichlet_noise(plane, alpha, epsilon):
 	out = (1-epsilon) * out + epsilon * np.random.dirichlet(alphas)
 	return out
 
-# Data augmentation from raw neural network inputs (with 2 planes)	
+# Data augmentation from raw neural network inputs
 def data_augmentation(planes, policy, board_size):
 	out_planes = []
 	out_policies = []
+	
+	num_board_planes = planes.shape[3] - 1
 	
 	planes = np.copy(planes)
 	p = np.copy(policy)
 	p_pass = p[0][-1]
 	t_p = np.reshape(p[0][:-1], (board_size, board_size))
-	t_plane = np.reshape(np.copy(planes[:,:,:,0]), (board_size, board_size))
+	t_plane = {}
+	for i in range(num_board_planes):
+		t_plane[i] = np.reshape(np.copy(planes[:,:,:,i]), (board_size, board_size))
 	for reflect in (False, True):
 		for k_rotate in range(0,4):
 			# Rotate/reflect policy out
@@ -159,9 +163,10 @@ def data_augmentation(planes, policy, board_size):
 			new_p = np.reshape(new_p, (1, board_size*board_size+1))
 			
 			# Rotate/reflect planes
-			new_plane = dihedral_transformation(t_plane, k_rotate, reflect)
-			new_plane = np.reshape(new_plane, (1, board_size, board_size))
-			planes[:,:,:,0] = new_plane
+			for i in range(num_board_planes):
+				new_plane = dihedral_transformation(t_plane[i], k_rotate, reflect)
+				new_plane = np.reshape(new_plane, (1, board_size, board_size))
+				planes[:,:,:,i] = new_plane
 			
 			out_planes.append(np.copy(planes))
 			out_policies.append(np.copy(new_p))
@@ -173,6 +178,10 @@ def letter_to_number(letter):
 
 def goban_1D_to_goban_2D(goban, size):
 	return np.reshape(goban, (size, size))
+
+def move_scalar_to_tuple(move, board_size):
+	t_move = (int(move / board_size) , move % board_size)
+	return t_move
 
 #------------------------------------------
 #---------------- SGF File ----------------

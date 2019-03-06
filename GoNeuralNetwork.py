@@ -21,7 +21,7 @@ learning_rate = 0.01
 momentum = 0.9
 
 # Conv "Tower" parameters
-input_planes = 2
+input_planes = 3
 filters = 64
 kernel_size = 3 # F
 stride = 1 # S
@@ -286,15 +286,20 @@ class GoNeuralNetwork():
 		new_p = np.full(p.shape, 0.)
 		
 		# Reverse player feature plane
-		for i in range(self.board_size):
-			for j in range(self.board_size):
-				planes[0][i][j][1] = (player_turn + 1) % 2
-		
+		p_plane = input_planes - 1
+		planes[:,:,:,p_plane] = np.full(planes[:,:,:,p_plane].shape, (player_turn + 1) % 2)
+
+		# Swap board planes
+		tmp = np.copy(planes[:,:,:,0])
+		planes[:,:,:,0] = planes[:,:,:,1]
+		planes[:,:,:,1] = tmp
+
 		# Simulates the legal move and get value				
-		for move in legals:	
-			planes[0][move[0]][move[1]][0] = player_turn+1
+		for move in legals:
+			#planes[0][move[0]][move[1]][0] = player_turn+1
+			planes[0][move[0]][move[1]][1] = 1
 			t_v = self.feed_forward_value(planes)
-			planes[0][move[0]][move[1]][0] = 0
+			planes[0][move[0]][move[1]][1] = 0
 			s_move = move[0] * self.board_size + move[1]
 			t_v = t_v[0][0][0]
 			new_p[0][s_move] = (t_v*(-1.) + 2.) #+ p[0][s_move]
@@ -305,8 +310,7 @@ class GoNeuralNetwork():
 		new_p[0][self.input_size] = (t_v*(-1.) + 2.) #+ p[0][self.input_size]
 		
 		# Dirichlet noise
-		t_p = ops.dirichlet_noise(new_p[0], dirichlet_alpha, dirichlet_epsilon)
-		new_p[0] = t_p
+		new_p[0] = ops.dirichlet_noise(new_p[0], dirichlet_alpha, dirichlet_epsilon)
 		
 		# Activate
 		new_p = ops.softmax(new_p)
@@ -315,7 +319,7 @@ class GoNeuralNetwork():
 	
 	def get_move(self, planes, player_turn, legals):
 		self.run_minibatch()
-		# TODO - Dihedral Transformation on planes (and reverse transformation for p and v)
+		# TODO - Dihedral Transformation on planes (and reverse transformation for p)
 		p, v = self.feed_forward(planes)
 		
 		# Policy Improvement Operator
@@ -339,7 +343,7 @@ class GoNeuralNetwork():
 	def save_in_self_memory(self, planes, policy, player_turn):
 		#self.save_one_in_self_memory(planes, p, player_turn)
 		
-		# Data augmentation		
+		# Data augmentation	
 		out_planes, out_policies = ops.data_augmentation(planes, policy, self.board_size)		
 		for i in range(len(out_planes)):
 			new_planes = out_planes[i]
