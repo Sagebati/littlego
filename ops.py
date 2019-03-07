@@ -98,7 +98,7 @@ def basic_layer(inputs, weights, biases, activation, use_batch_norm, drop_out, i
 	layer = tf.matmul(inputs, weights) + biases
 	if use_batch_norm:
 		layer = tf.layers.batch_normalization(layer, training=is_train)
-	layer = activation(layer)			
+	layer = activation(layer)
 	layer = tf.layers.dropout(layer, rate=drop_out, training=is_train)
 	return layer
 
@@ -179,9 +179,11 @@ def letter_to_number(letter):
 def goban_1D_to_goban_2D(goban, size):
 	return np.reshape(goban, (size, size))
 
+def goban_to_nn_state(goban, board_size):
+	return np.reshape(goban, (1, -1, board_size, 1))
+
 def move_scalar_to_tuple(move, board_size):
-	t_move = (int(move / board_size) , move % board_size)
-	return t_move
+	return (int(move / board_size) , move % board_size)
 
 #------------------------------------------
 #---------------- SGF File ----------------
@@ -234,8 +236,17 @@ def SGF_file_to_dataset(file_name):
 			#g.display()
 		# Moves
 		elif elem == "W" or elem == "B":
+			player = 0 if elem == "B" else 1		
 			# Make state
-			goban = goban_1D_to_goban_2D(g.goban(), size)		
+			#goban = goban_1D_to_goban_2D(g.goban(), size)		
+			goban = g.goban_split()
+			if player == 1:
+				goban = tuple(reversed(goban))
+			goban = np.array(goban)
+			g0 = goban_to_nn_state(goban[0], size)
+			g1 = goban_to_nn_state(goban[1], size)
+			goban = np.concatenate([g0, g1], axis=3)
+			
 			# Make policy
 			policy = np.zeros(size*size+1)
 			if content[i+1] == '  ':
@@ -246,7 +257,6 @@ def SGF_file_to_dataset(file_name):
 				move = x * size + y
 			policy[move] = 1
 			# Make value
-			player = 0 if elem == "B" else 1
 			value = 0 if winner == 2 else 1 if winner == player else -1
 			
 			# Save data

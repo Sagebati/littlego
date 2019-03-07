@@ -14,21 +14,17 @@ class GoNNAgent():
 		self.neural_network = GoNeuralNetwork(board_size)
 		print("Initialized - Agent")
 
-	def goban_to_nn_state(self, goban):
-		goban = np.reshape(goban, (1, -1, self.board_size, 1))
-		return goban
-
 	def get_move(self, goban, player_turn, legals):
 		#goban = self.goban_to_nn_state(goban)
 		if player_turn == 1:
 			goban = tuple(reversed(goban))
 		goban = np.array(goban)
-		g0 = self.goban_to_nn_state(goban[0])
-		g1 = self.goban_to_nn_state(goban[1])
+		g0 = ops.goban_to_nn_state(goban[0], self.board_size)
+		g1 = ops.goban_to_nn_state(goban[1], self.board_size)
 		goban = np.concatenate([g0, g1], axis=3)
 		
 		player_feature_plane = np.full([self.board_size, self.board_size], player_turn)
-		player_feature_plane = self.goban_to_nn_state(player_feature_plane)
+		player_feature_plane = ops.goban_to_nn_state(player_feature_plane, self.board_size)
 		planes = np.concatenate([goban, player_feature_plane], axis=3)
 		
 		p, v = self.neural_network.get_move(planes, player_turn, legals)
@@ -41,14 +37,14 @@ class GoNNAgent():
 	def supervised_training(self, dataset, k_fold = 0):		
 		# Training parameters
 		epoch = 10000
-		report_frequency = 5
+		report_frequency = 1
 		batch_size = 32
 		test_ratio = 1/30 # DeepMind paper
 		k = k_fold # k-fold cross validation
 		data_size = 2000
 
 		maxK = int(1/test_ratio)
-		k = max(k, maxK-1)
+		k = min(k, maxK-1)
 		
 		# Load dataset
 		print("Data loading")
@@ -57,7 +53,7 @@ class GoNNAgent():
 		t_policies = npzfile['policies']
 		t_values = npzfile['values']
 		player_turn = npzfile['player_turn']
-		
+
 		# TODO - remove the four next lines to work on the full dataset
 		t_states = t_states[:data_size]
 		t_policies = t_policies[:data_size]
@@ -69,13 +65,16 @@ class GoNNAgent():
 		tt_states = []
 		tt_policies = []
 		for i in range(len(t_states)):
-			player_feature_plane = np.full(t_states[i].shape, player_turn[i])
-			t_state = self.goban_to_nn_state(t_states[i])
-			player_feature_plane = self.goban_to_nn_state(player_feature_plane)
+			player_feature_plane = np.full((self.board_size, self.board_size), player_turn[i])
+			#t_state = ops.goban_to_nn_state(t_states[i], self.board_size)
+			t_state = t_states[i]
+			player_feature_plane = ops.goban_to_nn_state(player_feature_plane, self.board_size)
 			tt_states.append(np.concatenate([t_state, player_feature_plane], axis=3))
 			tt_policies.append(np.reshape(t_policies[i], (1, self.board_size ** 2 + 1)))
 		t_states = np.array(tt_states)
 		t_policies = np.array(tt_policies)
+		
+		input_planes = t_states.shape[-1]
 		
 		# Data augmentation 
 		print("Data augmentation")
@@ -107,7 +106,7 @@ class GoNNAgent():
 			train_policies = np.concatenate([policies[0:b_split], policies[e_split:]])
 			train_values = np.concatenate([values[0:b_split], values[e_split:]])
 			
-			test_states = np.reshape(test_states, (-1, self.board_size, self.board_size, 2))
+			test_states = np.reshape(test_states, (-1, self.board_size, self.board_size, input_planes))
 			test_policies = np.reshape(test_policies, (-1, self.board_size ** 2 + 1))			
 			
 			validation_states, validation_policies, validation_values = test_states, test_policies, test_values
@@ -124,24 +123,23 @@ class GoNNAgent():
 				while len(idx) < batch_size:
 					idx.append(np.random.randint(low=0, high=len_train))
 				batch_states, batch_policies, batch_values = train_states[idx], train_policies[idx], train_values[idx]
-			batch_states = np.reshape(batch_states, (-1, self.board_size, self.board_size, 2))
+			batch_states = np.reshape(batch_states, (-1, self.board_size, self.board_size, input_planes))
 			batch_policies = np.reshape(batch_policies, (-1, self.board_size ** 2 + 1))
 
 			# Train model on this batch
 			loss, p_acc, v_acc = self.neural_network.train(batch_states, batch_policies, batch_values, epoch)
-			# Validation
-			if test_size != 0:
-				val_p_acc, val_v_acc = self.neural_network.feed_forward_accuracies(validation_states, validation_policies, validation_values, epoch)
 			# Print results
 			if i % report_frequency == 0:
 				print("\nMinibatch {} : \nloss = {}".format(i, loss))
 				print("TRAINING  :\npolicy accuracy = {:.4f}\nvalue  accuracy = {:.4f}".format(p_acc, v_acc))
 				if test_size != 0:
+					if test_size != 0:
+						val_p_acc, val_v_acc, _, _ = self.neural_network.feed_forward_accuracies(validation_states, validation_policies, validation_values, epoch)				
 					print("VALIDATION:\npolicy accuracy = {:.4f}\nvalue  accuracy = {:.4f}".format(val_p_acc, val_v_acc))	
-				print()		
+				print()
 
 		print("Optimization Finished!")
-		test_p_acc, test_v_acc = self.neural_network.feed_forward_accuracies(test_states, test_policies, test_values, 0)
+		test_p_acc, test_v_acc, _, _ = self.neural_network.feed_forward_accuracies(test_states, test_policies, test_values, 0)
 		print("TEST      :\npolicy accuracy = {:.4f}\nvalue  accuracy = {:.4f}".format(test_p_acc, test_v_acc))
 
 
@@ -158,7 +156,7 @@ if __name__ == '__main__':
 		board_size = 13
 		goAgent = GoNNAgent(board_size)
 
-		turn_max = int(board_size ** 2 * 2.5)
+		turn_max = int(board_size ** 2 * 2.)
 
 		for i in range(1000):
 

@@ -213,7 +213,7 @@ class GoNeuralNetwork():
 			# Accuracies
 			policy_correct_prediction = tf.equal(tf.argmax(self.policy_out_prob, 1), tf.argmax(self.target_p, 1))
 			self.policy_accuracy = tf.reduce_mean(tf.cast(policy_correct_prediction, "float"))
-			self.value_accuracy = (2. - tf.reduce_mean(tf.abs(tf.subtract(self.target_v, self.value_out)))) / 2.
+			self.value_accuracy = 1. - tf.reduce_mean(tf.abs(tf.subtract(self.target_v, self.value_out))) / 2.
 
 	# ----- Minibatch -----
 	def run_minibatch(self):
@@ -263,15 +263,15 @@ class GoNeuralNetwork():
 		return v
 		
 	def feed_forward_accuracies(self, state, target_p, target_v, epoch):
-		p_acc, v_acc = self.session.run(
-			[self.policy_accuracy, self.value_accuracy],
+		p_acc, v_acc, p_out, v_out = self.session.run(
+			[self.policy_accuracy, self.value_accuracy, self.policy_out_prob, self.value_out],
 			{self.network_inputs['GoNeuralNetwork'] : state,
 			self.target_v : target_v,	 # and the targets in the optimizer
 			self.target_p : target_p,
 			self.is_train : False,
 			self.global_step : epoch # and update our global step.
 		})	
-		return p_acc, v_acc
+		return p_acc, v_acc, p_out, v_out
 	
 	# ----- Policy Improvement Operators -----
 	def remove_illegal(self, legals, p):
