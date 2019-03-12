@@ -34,14 +34,14 @@ class GoNNAgent():
 	def end_game(self, winner):
 		self.neural_network.save_in_replay_memory(winner)
 		
-	def supervised_training(self, dataset, k_fold = 0):		
+	def supervised_training(self, dataset, k_fold = 0):
 		# Training parameters
 		epoch = 100000
 		report_frequency = 1
 		validation_frequency = 500
 		batch_size = 32
 		k = k_fold # k-fold cross validation
-		data_size = 256
+		data_size = 2000
 		test_ratio = 1/30 # DeepMind paper		
 
 		maxK = int(1/test_ratio)
@@ -101,6 +101,10 @@ class GoNNAgent():
 		states, policies, values = zip(*temp)
 		states, policies, values = np.array(states), np.array(policies), np.array(values)
 
+		states = np.reshape(states, (-1, self.board_size, self.board_size, input_planes))
+		policies = np.reshape(policies, (-1, self.board_size ** 2 + 1))	
+		values = np.reshape(values, (-1, 1))
+		
 		# Data splitting
 		print("Data splitting")
 		len_dataset = len(values)		
@@ -112,9 +116,6 @@ class GoNNAgent():
 			train_states = np.concatenate([states[0:b_split], states[e_split:]])
 			train_policies = np.concatenate([policies[0:b_split], policies[e_split:]])
 			train_values = np.concatenate([values[0:b_split], values[e_split:]])
-			
-			test_states = np.reshape(test_states, (-1, self.board_size, self.board_size, input_planes))
-			test_policies = np.reshape(test_policies, (-1, self.board_size ** 2 + 1))			
 			
 			validation_states, validation_policies, validation_values = test_states, test_policies, test_values
 
@@ -130,8 +131,6 @@ class GoNNAgent():
 				while len(idx) < batch_size:
 					idx.append(np.random.randint(low=0, high=len_train))
 				batch_states, batch_policies, batch_values = train_states[idx], train_policies[idx], train_values[idx]
-			batch_states = np.reshape(batch_states, (-1, self.board_size, self.board_size, input_planes))
-			batch_policies = np.reshape(batch_policies, (-1, self.board_size ** 2 + 1))
 
 			# Train model on this batch
 			loss, p_acc, v_err = self.neural_network.train(batch_states, batch_policies, batch_values, epoch)
@@ -147,10 +146,11 @@ class GoNNAgent():
 				if test_size != 0:
 					val_p_acc, val_v_err, p_out, v_out = self.neural_network.feed_forward_accuracies(validation_states, validation_policies, validation_values, epoch)				
 					print("\nVALIDATION:\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(val_p_acc, val_v_err))	
+				self.neural_network.save_model()
 				print()
-				"""print(v_out)
-				print(validation_values)
-				input()"""
+				#print(v_out)
+				#print(validation_values)
+				#input()
 
 		print("Optimization Finished!")
 		test_p_acc, test_v_err, _, _ = self.neural_network.feed_forward_accuracies(test_states, test_policies, test_values, 0)

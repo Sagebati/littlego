@@ -187,11 +187,14 @@ class GoNeuralNetwork():
 	# ----- Optimizer -----
 	def build_optimizer(self):
 		with tf.variable_scope('optimizer'):
-			self.target_v = tf.placeholder(tf.float32, shape=[None], name="target_v")
+			#self.target_v = tf.placeholder(tf.float32, shape=[None], name="target_v")
+			self.target_v = tf.placeholder(tf.float32, shape=[None, 1], name="target_v")
 			self.target_p = tf.placeholder(tf.float32, shape=[None, self.policy_size], name="target_p")
 
 			# Loss
-			loss_v = tf.reduce_mean(tf.square(tf.subtract(self.target_v, self.value_out)))			
+			value_out = self.value_out
+			#value_out = tf.reshape(value_out, tf.shape(self.target_v))
+			loss_v = tf.reduce_mean(tf.square(tf.subtract(self.target_v, value_out)))
 			loss_p = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.target_p, logits=self.policy_out))
 			self.loss_op = tf.add(loss_v, loss_p)
 			if l2_beta != 0.:

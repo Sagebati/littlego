@@ -41,7 +41,7 @@ class SarstReplayMemory:
 		self.states = np.zeros(shape=new_state_size, dtype=np.int8)
 		new_policy_size = [self.memory_capacity] + [s for s in policy_size]
 		self.policies = np.zeros(shape=new_policy_size, dtype=np.uint16)
-		self.values = np.zeros(shape=(self.memory_capacity), dtype=np.float32)
+		self.values = np.zeros(shape=(self.memory_capacity, 1), dtype=np.float32)
 
 
 	def save_memory(self, memoryFile):
