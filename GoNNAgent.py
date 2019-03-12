@@ -36,12 +36,13 @@ class GoNNAgent():
 		
 	def supervised_training(self, dataset, k_fold = 0):		
 		# Training parameters
-		epoch = 10000
+		epoch = 100000
 		report_frequency = 1
+		validation_frequency = 500
 		batch_size = 32
-		test_ratio = 1/30 # DeepMind paper
 		k = k_fold # k-fold cross validation
-		data_size = 2000
+		data_size = 256
+		test_ratio = 1/30 # DeepMind paper		
 
 		maxK = int(1/test_ratio)
 		k = min(k, maxK-1)
@@ -54,7 +55,13 @@ class GoNNAgent():
 		t_values = npzfile['values']
 		player_turn = npzfile['player_turn']
 
-		# TODO - remove the four next lines to work on the full dataset
+		# TODO - remove the next lines to work on the full dataset
+		# pre-shuffle
+		temp = list(zip(t_states, t_policies, t_values))
+		shuffle(temp)
+		t_states, t_policies, t_values = zip(*temp)
+		t_states, t_policies, t_values = np.array(t_states), np.array(t_policies), np.array(t_values)
+		
 		t_states = t_states[:data_size]
 		t_policies = t_policies[:data_size]
 		t_values = t_values[:data_size]
@@ -92,7 +99,7 @@ class GoNNAgent():
 		temp = list(zip(states, policies, values))
 		shuffle(temp)
 		states, policies, values = zip(*temp)
-		states, policies, values = np.array(states), np.array(policies), np.array(values)	
+		states, policies, values = np.array(states), np.array(policies), np.array(values)
 
 		# Data splitting
 		print("Data splitting")
@@ -127,32 +134,39 @@ class GoNNAgent():
 			batch_policies = np.reshape(batch_policies, (-1, self.board_size ** 2 + 1))
 
 			# Train model on this batch
-			loss, p_acc, v_acc = self.neural_network.train(batch_states, batch_policies, batch_values, epoch)
+			loss, p_acc, v_err = self.neural_network.train(batch_states, batch_policies, batch_values, epoch)
+			#print(self.neural_network.feed_forward_value(batch_states))
+			#print(batch_values)
+			
 			# Print results
 			if i % report_frequency == 0:
 				print("\nMinibatch {} : \nloss = {}".format(i, loss))
-				print("TRAINING  :\npolicy accuracy = {:.4f}\nvalue  accuracy = {:.4f}".format(p_acc, v_acc))
+				print("TRAINING  :\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(p_acc, v_err))
+				
+			if i % validation_frequency == 0:
 				if test_size != 0:
-					if test_size != 0:
-						val_p_acc, val_v_acc, _, _ = self.neural_network.feed_forward_accuracies(validation_states, validation_policies, validation_values, epoch)				
-					print("VALIDATION:\npolicy accuracy = {:.4f}\nvalue  accuracy = {:.4f}".format(val_p_acc, val_v_acc))	
+					val_p_acc, val_v_err, p_out, v_out = self.neural_network.feed_forward_accuracies(validation_states, validation_policies, validation_values, epoch)				
+					print("\nVALIDATION:\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(val_p_acc, val_v_err))	
 				print()
+				"""print(v_out)
+				print(validation_values)
+				input()"""
 
 		print("Optimization Finished!")
-		test_p_acc, test_v_acc, _, _ = self.neural_network.feed_forward_accuracies(test_states, test_policies, test_values, 0)
-		print("TEST      :\npolicy accuracy = {:.4f}\nvalue  accuracy = {:.4f}".format(test_p_acc, test_v_acc))
+		test_p_acc, test_v_err, _, _ = self.neural_network.feed_forward_accuracies(test_states, test_policies, test_values, 0)
+		print("TEST      :\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(test_p_acc, test_v_err))
 
 
 
 if __name__ == '__main__':
 	
 	if len(sys.argv) != 1:
-	# Supervised training
+		# Supervised training
 		board_size = 19
 		goAgent = GoNNAgent(board_size)	
 		goAgent.supervised_training(sys.argv[1])
 	else:
-	# Reinforcement training
+		# Reinforcement training
 		board_size = 13
 		goAgent = GoNNAgent(board_size)
 
@@ -167,7 +181,7 @@ if __name__ == '__main__':
 			while not g.over():
 				print("game {} - total_turn = {}".format(i, total_turn))
 				#goban = g.goban()
-				goban = g.goban_split()
+				goban = g.raw_goban_split()
 				move = goAgent.get_move(goban, total_turn % 2, g.legals())
 				t_move = ops.move_scalar_to_tuple(move, board_size)
 				if t_move in g.legals():
@@ -175,7 +189,7 @@ if __name__ == '__main__':
 					g.play(t_move)
 				else:
 					print("(skip_move)")
-					g.skip()
+					g.play(None)
 				g.display()
 				total_turn += 1	
 				if total_turn > turn_max:
@@ -183,6 +197,7 @@ if __name__ == '__main__':
 
 			if total_turn > turn_max:	
 				winner = 2 # draw
+				print("(Draw due to maximum moves)")
 			else:
 				score = g.outcome()
 				print(score)

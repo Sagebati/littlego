@@ -119,6 +119,11 @@ class SarstReplayMemory:
 				chosen_idx -= self.memory_capacity-1
 				#print("this chosen reward should read %.4f\n" % (abs(self.rewards[chosen_idx]) + self.priority_epsilon)**self.priority_alpha)
 				chosen_sarst_indexes.append(chosen_idx)
+				
+			"""print("{:.0f} | {:.0f} | {:.0f} | {:.0f}".format(np.mean(chosen_sarst_indexes),
+											np.std(chosen_sarst_indexes),
+											np.min(chosen_sarst_indexes),
+											np.max(chosen_sarst_indexes)))"""
 		else:		
 			# choose randomly
 			while len(chosen_sarst_indexes) < batch_size:

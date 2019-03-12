@@ -8,9 +8,9 @@ from SarstReplayMemory import SarstReplayMemory
 # ----------Hyper-Parameters----------
 
 # --- Network parameters ---
-#activation = tf.nn.leaky_relu
+activation = tf.nn.leaky_relu
 #activation = tf.nn.elu
-activation = tf.nn.relu
+#activation = tf.nn.relu
 
 batch_size = 32 # total batch size
 memory_capacity = 500000 # The size of the SarstReplayMemory class
@@ -19,6 +19,10 @@ trace_length = 1
 
 learning_rate = 0.01
 momentum = 0.9
+
+#weight_initializer = tf.truncated_normal_initializer()
+#weight_initializer = tf.contrib.layers.xavier_initializer()
+weight_initializer = tf.contrib.layers.variance_scaling_initializer() # He_initializer
 
 # Conv "Tower" parameters
 input_planes = 3
@@ -40,8 +44,8 @@ v_stride = 1 # S
 v_activation = tf.nn.tanh # output value activation
 
 # Regularization
-l2_beta = 0.000
-useBatchNorm = False
+l2_beta = 0.0001
+useBatchNorm = True
 drop_out = 0.
 use_gradient_clipping = True
 clip_by_norm = True # or by value
@@ -84,6 +88,7 @@ class GoNeuralNetwork():
 		self.memory_loss = []
 		self.total_iterations = 0
 		self.temp_loss = 0
+		self.total_games = 0
 		# ----------------------------------------
 
 		with tf.device('/gpu:0'):
@@ -92,7 +97,7 @@ class GoNeuralNetwork():
 				self.initNetwork(session)
 
 		self.saver = tf.train.Saver() #tf.all_variables()		
-		#self.restore_model()
+		self.restore_model()
 	
 	def initNetwork(self, tf_session):
 		self.session = tf_session # a tensorflow session	
@@ -136,9 +141,9 @@ class GoNeuralNetwork():
 			self.network_inputs[scope_name] = tf.placeholder(tf.float32, shape=net_shape, name="inputs")
 			
 			# Conv Layers
-			conv = ops.conv_layer(self.network_inputs[scope_name], filters, kernel_size, stride, activation, "conv1", useBatchNorm, drop_out, self.is_train)
+			conv = ops.conv_layer(self.network_inputs[scope_name], filters, kernel_size, stride, activation, "conv1", useBatchNorm, drop_out, self.is_train, weight_initializer)
 			for i in range(num_blocks):
-				conv = ops.residual_conv_block(conv, filters, kernel_size, stride, activation, "conv"+str(i), useBatchNorm, drop_out, self.is_train)
+				conv = ops.residual_conv_block(conv, filters, kernel_size, stride, activation, "conv"+str(i), useBatchNorm, drop_out, self.is_train, weight_initializer)
 			
 			# Policy and value heads
 			# - Compute conv output size
@@ -152,9 +157,11 @@ class GoNeuralNetwork():
 				'policy': tf.get_variable('w_policy', shape=[policy_conv_out_size, self.policy_size],
 						initializer=tf.contrib.layers.xavier_initializer()) ,
 				'value': tf.get_variable('w_value', shape=[value_conv_out_size, 256],
-						initializer=tf.contrib.layers.xavier_initializer()),
+						initializer=weight_initializer),
 				'value_out': tf.get_variable('w_value_out', shape=[256, 1] ,
-						initializer=tf.contrib.layers.xavier_initializer())
+						initializer=tf.contrib.layers.xavier_initializer()
+						#tf.truncated_normal_initializer()
+						)
 			}
 			biases = {	
 				'policy': tf.get_variable('b_policy', shape=[self.policy_size],
@@ -166,13 +173,13 @@ class GoNeuralNetwork():
 			}
 
 			# Policy head
-			policy_conv = ops.conv_layer(conv, p_filters, p_kernel_size, p_stride, activation, "policy_conv", useBatchNorm, drop_out, self.is_train)
+			policy_conv = ops.conv_layer(conv, p_filters, p_kernel_size, p_stride, activation, "policy_conv", useBatchNorm, drop_out, self.is_train, weight_initializer)
 			policy_conv = tf.contrib.layers.flatten(policy_conv)
 			self.policy_out = ops.basic_layer(policy_conv, weights["policy"], biases["policy"], tf.identity, False, 0.0, self.is_train)
 			self.policy_out_prob = p_activation(self.policy_out)
 
 			# Value head
-			value_conv = ops.conv_layer(conv, v_filters, v_kernel_size, v_stride, activation, "value_conv", useBatchNorm, drop_out, self.is_train)
+			value_conv = ops.conv_layer(conv, v_filters, v_kernel_size, v_stride, activation, "value_conv", useBatchNorm, drop_out, self.is_train, weight_initializer)
 			value_conv = tf.contrib.layers.flatten(value_conv)
 			value_out = ops.basic_layer(value_conv, weights["value"], biases["value"], activation, False, drop_out, self.is_train)
 			self.value_out = ops.basic_layer(value_out, weights["value_out"], biases["value_out"], v_activation, False, 0.0, self.is_train)
@@ -182,38 +189,44 @@ class GoNeuralNetwork():
 		with tf.variable_scope('optimizer'):
 			self.target_v = tf.placeholder(tf.float32, shape=[None], name="target_v")
 			self.target_p = tf.placeholder(tf.float32, shape=[None, self.policy_size], name="target_p")
-			
+
 			# Loss
 			loss_v = tf.reduce_mean(tf.square(tf.subtract(self.target_v, self.value_out)))			
 			loss_p = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.target_p, logits=self.policy_out))
 			self.loss_op = tf.add(loss_v, loss_p)
 			if l2_beta != 0.:
 				l2 = l2_beta * tf.add_n([ tf.nn.l2_loss(v) for v in tf.trainable_variables()
-		            if not ("noreg" in v.name or "b_" in v.name) ])
+		            if not ("b_" in v.name) ])
+		            
+				#self.loss_op = tf.add(self.loss_op, tf.reduce_mean(l2))
 				self.loss_op = tf.add(self.loss_op, l2)
-			
+				
 			# Optimizer
 			#opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
-			#opt = tf.train.AdamOptimizer(learning_rate=learning_rate)
-			opt = tf.train.RMSPropOptimizer(learning_rate, momentum=momentum)
+			opt = tf.train.AdamOptimizer(learning_rate=learning_rate)
+			#opt = tf.train.RMSPropOptimizer(learning_rate, momentum=momentum)
+			#opt = tf.train.MomentumOptimizer(learning_rate, momentum)
 
 			# Gradient clipping and optimization
-			if use_gradient_clipping:
-				gvs = opt.compute_gradients(self.loss_op)
-				if clip_by_norm:
-					grad, vs = zip(*gvs)
-					grad, _ = tf.clip_by_global_norm(grad, gradient_clipping_norm)
-					capped_gvs = zip(grad, vs)
+			update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+			with tf.control_dependencies(update_ops): # Needed for batch normalization
+				if use_gradient_clipping:
+					gvs = opt.compute_gradients(self.loss_op)
+					if clip_by_norm:
+						grad, vs = zip(*gvs)
+						grad, _ = tf.clip_by_global_norm(grad, gradient_clipping_norm)
+						capped_gvs = zip(grad, vs)
+					else:
+						capped_gvs = [(tf.clip_by_value(grad, -1., 1.), var) for grad, var in gvs]
+					self.optimizer = opt.apply_gradients(capped_gvs)
 				else:
-					capped_gvs = [(tf.clip_by_value(grad, -1., 1.), var) for grad, var in gvs]
-				self.optimizer = opt.apply_gradients(capped_gvs)
-			else:
-				self.optimizer = opt.minimize(self.loss_op)
+					self.optimizer = opt.minimize(self.loss_op)
 			
 			# Accuracies
 			policy_correct_prediction = tf.equal(tf.argmax(self.policy_out_prob, 1), tf.argmax(self.target_p, 1))
 			self.policy_accuracy = tf.reduce_mean(tf.cast(policy_correct_prediction, "float"))
 			self.value_accuracy = 1. - tf.reduce_mean(tf.abs(tf.subtract(self.target_v, self.value_out))) / 2.
+			self.value_error = loss_v
 
 	# ----- Minibatch -----
 	def run_minibatch(self):
@@ -233,15 +246,15 @@ class GoNeuralNetwork():
 				self.save_model()
 
 	def train(self, state, target_p, target_v, epoch):
-		_, loss, p_acc, v_acc = self.session.run(
-			[self.optimizer, self.loss_op, self.policy_accuracy, self.value_accuracy],
+		_, loss, p_acc, v_err = self.session.run(
+			[self.optimizer, self.loss_op, self.policy_accuracy, self.value_error],
 			{self.network_inputs['GoNeuralNetwork'] : state,
 			self.target_v : target_v,	 # and the targets in the optimizer
 			self.target_p : target_p,
 			self.is_train : True,
 			self.global_step : epoch # and update our global step.
 		})
-		return loss, p_acc, v_acc
+		return loss, p_acc, v_err
 	
 	# ----- Feed Forward (without training) -----
 	def feed_forward(self, state):
@@ -263,15 +276,15 @@ class GoNeuralNetwork():
 		return v
 		
 	def feed_forward_accuracies(self, state, target_p, target_v, epoch):
-		p_acc, v_acc, p_out, v_out = self.session.run(
-			[self.policy_accuracy, self.value_accuracy, self.policy_out_prob, self.value_out],
+		p_acc, v_err, p_out, v_out = self.session.run(
+			[self.policy_accuracy, self.value_error, self.policy_out_prob, self.value_out],
 			{self.network_inputs['GoNeuralNetwork'] : state,
 			self.target_v : target_v,	 # and the targets in the optimizer
 			self.target_p : target_p,
 			self.is_train : False,
 			self.global_step : epoch # and update our global step.
 		})	
-		return p_acc, v_acc, p_out, v_out
+		return p_acc, v_err, p_out, v_out
 	
 	# ----- Policy Improvement Operators -----
 	def remove_illegal(self, legals, p):
@@ -361,6 +374,7 @@ class GoNeuralNetwork():
 		self.memory_states = []
 		self.memory_policies = []
 		self.player_turns = []
+		self.total_games += 1
 		
 	def save_model(self):
 		# TODO - save with model name
@@ -372,7 +386,8 @@ class GoNeuralNetwork():
 		# Save parameters
 		np.savez(hyperparametersFile, 
 			total_iterations = self.total_iterations,
-			memory_loss = self.memory_loss)		
+			memory_loss = self.memory_loss,
+			total_games = self.total_games)		
 		print("=== Parameters saved as \"{}.npz\" ===\n".format(hyperparametersFile))	
 		# TODO - save rnn_state_train 
 		
@@ -390,6 +405,7 @@ class GoNeuralNetwork():
 			npzFile = np.load("{}.npz".format(hyperparametersFile))
 			self.total_iterations = npzFile['total_iterations']
 			self.memory_loss = npzFile['memory_loss']
+			self.total_games = npzFile['total_games']
 			print("=== Parameters restored from \"{}.npz\" ===\n".format(hyperparametersFile))
 		"""else:
 			self.copy_prediction_parameters_to_target_network()"""

@@ -102,12 +102,12 @@ def basic_layer(inputs, weights, biases, activation, use_batch_norm, drop_out, i
 	layer = tf.layers.dropout(layer, rate=drop_out, training=is_train)
 	return layer
 
-def conv_layer(inputs, filters, kernel, stride, activation, layer_name, use_batch_norm, drop_out, is_train):
+def conv_layer(inputs, filters, kernel, stride, activation, layer_name, use_batch_norm, drop_out, is_train, weight_initializer=xavier_initializer()):
 	layer = conv(inputs,
 				filters,
 				kernel=[kernel, kernel],
 				strides=[stride, stride],
-				w_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+				w_initializer=weight_initializer,
 				name=layer_name)
 	if use_batch_norm:
 		layer = tf.layers.batch_normalization(layer, training=is_train)				
@@ -115,9 +115,9 @@ def conv_layer(inputs, filters, kernel, stride, activation, layer_name, use_batc
 	layer = tf.layers.dropout(layer, rate=drop_out, training=is_train)
 	return layer
 
-def residual_conv_block(inputs, filters, kernel, stride, activation, layer_name, use_batch_norm, drop_out, is_train):
-	layer = conv_layer(inputs, filters, kernel, stride, activation, layer_name+"_1", use_batch_norm, drop_out, is_train)
-	layer = conv_layer(layer, filters, kernel, stride, tf.identity, layer_name+"_2", use_batch_norm, drop_out, is_train)
+def residual_conv_block(inputs, filters, kernel, stride, activation, layer_name, use_batch_norm, drop_out, is_train, weight_initializer=xavier_initializer()):
+	layer = conv_layer(inputs, filters, kernel, stride, activation, layer_name+"_1", use_batch_norm, drop_out, is_train, weight_initializer)
+	layer = conv_layer(layer, filters, kernel, stride, tf.identity, layer_name+"_2", use_batch_norm, drop_out, is_train, weight_initializer)
 	layer += inputs
 	layer = activation(layer)
 	return layer
@@ -231,15 +231,15 @@ def SGF_file_to_dataset(file_name):
 				x = letter_to_number(content[i+1+h][0])
 				y = letter_to_number(content[i+1+h][1])
 				g.play((x, y))
-				g.skip()
-			g.skip() # Necessary because it's up to white to play
+				g.play(None)
+			g.play(None) # Necessary because it's up to white to play
 			#g.display()
 		# Moves
 		elif elem == "W" or elem == "B":
 			player = 0 if elem == "B" else 1		
 			# Make state
 			#goban = goban_1D_to_goban_2D(g.goban(), size)		
-			goban = g.goban_split()
+			goban = g.raw_goban_split()
 			if player == 1:
 				goban = tuple(reversed(goban))
 			goban = np.array(goban)
@@ -267,7 +267,7 @@ def SGF_file_to_dataset(file_name):
 			
 			# Play move
 			if move == size*size:
-				g.skip()
+				g.play(None)
 			else:
 				g.play((x, y))
 			#g.display()
