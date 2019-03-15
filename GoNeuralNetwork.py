@@ -17,7 +17,7 @@ memory_capacity = 500000 # The size of the SarstReplayMemory class
 useLSTM = False # let False | TODO - implement LSTM
 trace_length = 1
 
-learning_rate = 0.01
+learning_rate = 0.001
 momentum = 0.9
 
 #weight_initializer = tf.truncated_normal_initializer()
@@ -25,11 +25,11 @@ momentum = 0.9
 weight_initializer = tf.contrib.layers.variance_scaling_initializer() # He_initializer
 
 # Conv "Tower" parameters
-input_planes = 3
-filters = 64
+input_planes = 5
+filters = 32
 kernel_size = 3 # F
 stride = 1 # S
-num_blocks = 5 # each block has 2 conv layers
+num_blocks = 1 # each block has 2 conv layers
 
 # Policy head parameters
 p_filters = 2
@@ -44,9 +44,10 @@ v_stride = 1 # S
 v_activation = tf.nn.tanh # output value activation
 
 # Regularization
-l2_beta = 0.0001
+l2_beta = 0.001
 useBatchNorm = True
-drop_out = 0.
+drop_out = 0. # conv drop out
+head_drop_out = drop_out # dense drop out
 use_gradient_clipping = True
 clip_by_norm = True # or by value
 gradient_clipping_norm = 5.0
@@ -136,12 +137,12 @@ class GoNeuralNetwork():
 		with tf.variable_scope(scope_name):
 			self.is_train = tf.placeholder(tf.bool, name="is_train");
 			self.global_step = tf.placeholder(tf.int32, name="global_step")
-		
+
 			# Input Layer
 			self.network_inputs[scope_name] = tf.placeholder(tf.float32, shape=net_shape, name="inputs")
 			
 			# Conv Layers
-			conv = ops.conv_layer(self.network_inputs[scope_name], filters, kernel_size, stride, activation, "conv1", useBatchNorm, drop_out, self.is_train, weight_initializer)
+			conv = ops.conv_layer(self.network_inputs[scope_name], filters, kernel_size, stride, activation, "conv_first", useBatchNorm, drop_out, self.is_train, weight_initializer)
 			for i in range(num_blocks):
 				conv = ops.residual_conv_block(conv, filters, kernel_size, stride, activation, "conv"+str(i), useBatchNorm, drop_out, self.is_train, weight_initializer)
 			
@@ -181,7 +182,7 @@ class GoNeuralNetwork():
 			# Value head
 			value_conv = ops.conv_layer(conv, v_filters, v_kernel_size, v_stride, activation, "value_conv", useBatchNorm, drop_out, self.is_train, weight_initializer)
 			value_conv = tf.contrib.layers.flatten(value_conv)
-			value_out = ops.basic_layer(value_conv, weights["value"], biases["value"], activation, False, drop_out, self.is_train)
+			value_out = ops.basic_layer(value_conv, weights["value"], biases["value"], activation, False, head_drop_out, self.is_train)
 			self.value_out = ops.basic_layer(value_out, weights["value_out"], biases["value_out"], v_activation, False, 0.0, self.is_train)
 
 	# ----- Optimizer -----
@@ -192,15 +193,12 @@ class GoNeuralNetwork():
 			self.target_p = tf.placeholder(tf.float32, shape=[None, self.policy_size], name="target_p")
 
 			# Loss
-			value_out = self.value_out
-			#value_out = tf.reshape(value_out, tf.shape(self.target_v))
-			loss_v = tf.reduce_mean(tf.square(tf.subtract(self.target_v, value_out)))
+			loss_v = tf.reduce_mean(tf.square(tf.subtract(self.target_v, self.value_out)))
 			loss_p = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.target_p, logits=self.policy_out))
 			self.loss_op = tf.add(loss_v, loss_p)
 			if l2_beta != 0.:
 				l2 = l2_beta * tf.add_n([ tf.nn.l2_loss(v) for v in tf.trainable_variables()
 		            if not ("b_" in v.name) ])
-		            
 				#self.loss_op = tf.add(self.loss_op, tf.reduce_mean(l2))
 				self.loss_op = tf.add(self.loss_op, l2)
 				
@@ -379,13 +377,14 @@ class GoNeuralNetwork():
 		self.player_turns = []
 		self.total_games += 1
 		
-	def save_model(self):
+	def save_model(self, save_memory = True):
 		# TODO - save with model name
 		# Save model
 		self.saver.save(self.session, modelCheckpoint)
 		print("=== Model saved as \"{}\" ===".format(modelCheckpoint))
 		# Save memory
-		self.save_memory(memoryFile)	
+		if save_memory:
+			self.save_memory(memoryFile)
 		# Save parameters
 		np.savez(hyperparametersFile, 
 			total_iterations = self.total_iterations,

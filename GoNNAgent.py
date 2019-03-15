@@ -36,13 +36,15 @@ class GoNNAgent():
 		
 	def supervised_training(self, dataset, k_fold = 0):
 		# Training parameters
-		epoch = 100000
-		report_frequency = 1
+		epoch = 500000
+		report_frequency = 5
 		validation_frequency = 500
+		save_frequency = 1000
 		batch_size = 32
 		k = k_fold # k-fold cross validation
-		data_size = 2000
+		data_size = 3000
 		test_ratio = 1/30 # DeepMind paper		
+		random.seed(0)
 
 		maxK = int(1/test_ratio)
 		k = min(k, maxK-1)
@@ -57,6 +59,7 @@ class GoNNAgent():
 
 		# TODO - remove the next lines to work on the full dataset
 		# pre-shuffle
+		print("(pre-shuffle)")
 		temp = list(zip(t_states, t_policies, t_values))
 		shuffle(temp)
 		t_states, t_policies, t_values = zip(*temp)
@@ -121,8 +124,9 @@ class GoNNAgent():
 
 		# Training
 		print("Training")
+		self.neural_network.save_model()
 		len_train = train_states.shape[0]
-		for i in range(epoch):
+		for i in range(1,epoch):
 			# Get batch
 			if(batch_size == len_train):
 				batch_states, batch_policies, batch_values = train_states, train_policies, train_values
@@ -134,8 +138,6 @@ class GoNNAgent():
 
 			# Train model on this batch
 			loss, p_acc, v_err = self.neural_network.train(batch_states, batch_policies, batch_values, epoch)
-			#print(self.neural_network.feed_forward_value(batch_states))
-			#print(batch_values)
 			
 			# Print results
 			if i % report_frequency == 0:
@@ -146,11 +148,10 @@ class GoNNAgent():
 				if test_size != 0:
 					val_p_acc, val_v_err, p_out, v_out = self.neural_network.feed_forward_accuracies(validation_states, validation_policies, validation_values, epoch)				
 					print("\nVALIDATION:\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(val_p_acc, val_v_err))	
-				self.neural_network.save_model()
 				print()
-				#print(v_out)
-				#print(validation_values)
-				#input()
+			
+			if i % save_frequency == 0:
+				self.neural_network.save_model(False)
 
 		print("Optimization Finished!")
 		test_p_acc, test_v_err, _, _ = self.neural_network.feed_forward_accuracies(test_states, test_policies, test_values, 0)

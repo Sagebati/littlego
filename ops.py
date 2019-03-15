@@ -212,6 +212,7 @@ def SGF_file_to_dataset(file_name):
 	
 	g = IGame(size)
 	
+	g_old = np.full((1, size, size, 2), 0)
 	for i in range(len(content)):
 		elem = content[i]
 		# Board size
@@ -245,7 +246,10 @@ def SGF_file_to_dataset(file_name):
 			goban = np.array(goban)
 			g0 = goban_to_nn_state(goban[0], size)
 			g1 = goban_to_nn_state(goban[1], size)
-			goban = np.concatenate([g0, g1], axis=3)
+			g0_old = goban_to_nn_state(g_old[:,:,:,0], size)
+			g1_old = goban_to_nn_state(g_old[:,:,:,1], size)
+			goban = np.concatenate([g0, g0_old, g1, g1_old], axis=3).astype(bool)
+			g_old = np.concatenate([g1, g0], axis=3)
 			
 			# Make policy
 			policy = np.zeros(size*size+1)
