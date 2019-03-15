@@ -170,7 +170,7 @@ def data_augmentation(planes, policy, board_size):
 			
 			out_planes.append(np.copy(planes))
 			out_policies.append(np.copy(new_p))
-				
+			
 	return out_planes, out_policies
 
 def letter_to_number(letter):
@@ -181,6 +181,18 @@ def goban_1D_to_goban_2D(goban, size):
 
 def goban_to_nn_state(goban, board_size):
 	return np.reshape(goban, (1, -1, board_size, 1))
+
+def goban_to_input_planes(goban, g_old, player_turn, size, dtype = bool):
+	if player_turn == 1:
+		goban = tuple(reversed(goban))
+	goban = np.array(goban)
+	g0 = goban_to_nn_state(goban[0], size)
+	g1 = goban_to_nn_state(goban[1], size)
+	g0_old = goban_to_nn_state(g_old[:,:,:,0], size)
+	g1_old = goban_to_nn_state(g_old[:,:,:,1], size)
+	goban = np.concatenate([g0, g0_old, g1, g1_old], axis=3).astype(dtype)
+	g_old = np.concatenate([g1, g0], axis=3)
+	return goban, g_old
 
 def move_scalar_to_tuple(move, board_size):
 	return (int(move / board_size) , move % board_size)
@@ -241,15 +253,7 @@ def SGF_file_to_dataset(file_name):
 			# Make state
 			#goban = goban_1D_to_goban_2D(g.goban(), size)		
 			goban = g.raw_goban_split()
-			if player == 1:
-				goban = tuple(reversed(goban))
-			goban = np.array(goban)
-			g0 = goban_to_nn_state(goban[0], size)
-			g1 = goban_to_nn_state(goban[1], size)
-			g0_old = goban_to_nn_state(g_old[:,:,:,0], size)
-			g1_old = goban_to_nn_state(g_old[:,:,:,1], size)
-			goban = np.concatenate([g0, g0_old, g1, g1_old], axis=3).astype(bool)
-			g_old = np.concatenate([g1, g0], axis=3)
+			goban, g_old = goban_to_input_planes(goban, g_old, player, size)
 			
 			# Make policy
 			policy = np.zeros(size*size+1)

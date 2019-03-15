@@ -26,25 +26,25 @@ weight_initializer = tf.contrib.layers.variance_scaling_initializer() # He_initi
 
 # Conv "Tower" parameters
 input_planes = 5
-filters = 32
+filters = 64
 kernel_size = 3 # F
 stride = 1 # S
-num_blocks = 1 # each block has 2 conv layers
+num_blocks = 5 # each block has 2 conv layers
 
 # Policy head parameters
-p_filters = 2
+p_filters = 32
 p_kernel_size = 1 # F
 p_stride = 1 # S
 p_activation = tf.nn.softmax # output policy activation
 
 # Value head parameters
-v_filters = 1
+v_filters = 32
 v_kernel_size = 1 # F
 v_stride = 1 # S
 v_activation = tf.nn.tanh # output value activation
 
 # Regularization
-l2_beta = 0.001
+l2_beta = 0.01
 useBatchNorm = True
 drop_out = 0. # conv drop out
 head_drop_out = drop_out # dense drop out
@@ -298,6 +298,7 @@ class GoNeuralNetwork():
 	def weak_mcts(self, planes, player_turn, legals, p):
 		planes = np.copy(planes)
 		new_p = np.full(p.shape, 0.)
+		num_boards = (input_planes - 1) / 2
 		
 		# Reverse player feature plane
 		p_plane = input_planes - 1
@@ -311,9 +312,10 @@ class GoNeuralNetwork():
 		# Simulates the legal move and get value				
 		for move in legals:
 			#planes[0][move[0]][move[1]][0] = player_turn+1
-			planes[0][move[0]][move[1]][1] = 1
+			last_plane = input_planes - 1 - num_boards
+			planes[0][move[0]][move[1]][last_plane] = 1
 			t_v = self.feed_forward_value(planes)
-			planes[0][move[0]][move[1]][1] = 0
+			planes[0][move[0]][move[1]][last_plane] = 0
 			s_move = move[0] * self.board_size + move[1]
 			t_v = t_v[0][0][0]
 			new_p[0][s_move] = (t_v*(-1.) + 2.) #+ p[0][s_move]
