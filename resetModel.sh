@@ -1,3 +1,5 @@
+#!/bin/bash
+
 rm checkpoint
 rm modelMemory.gonn.npz
 rm modelParameters.gonn.npz

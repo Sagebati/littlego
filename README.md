@@ -6,4 +6,5 @@ Go IA.
 
 ## Dependencies
 
-rusty_goban
+libshusaku
+
