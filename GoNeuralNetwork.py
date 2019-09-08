@@ -73,7 +73,7 @@ report_frequency = 1
 
 # -----------------------------
 
-class GoNeuralNetwork():
+class GoNeuralNetwork:
 
     def __init__(self, board_size):
         print("--- Initialization of Neural Network")
@@ -323,7 +323,7 @@ class GoNeuralNetwork():
         # Simulates the legal move and get value
         for move in legals:
             # planes[0][move[0]][move[1]][0] = player_turn+1
-            last_plane = input_planes - 1 - num_boards
+            last_plane = int(input_planes - 1 - num_boards)
             planes[0][move[0]][move[1]][last_plane] = 1
             t_v = self.feed_forward_value(planes)
             planes[0][move[0]][move[1]][last_plane] = 0

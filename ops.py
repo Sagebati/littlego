@@ -1,5 +1,4 @@
 import os
-import sys
 
 import numpy as np
 import tensorflow as tf
@@ -347,10 +346,3 @@ def SGF_folder_rule_filter(folder_name, rule_filter):
             if is_filter:
                 print("remove {}".format(file_name))
                 os.remove(file_name)
-
-
-if __name__ == '__main__':
-    # SGF_folder_rule_filter(sys.argv[1], "Chinese")
-    SGF_folder_to_dataset(sys.argv[1])
-    # SGF_file_to_dataset(sys.argv[1])
-    pass

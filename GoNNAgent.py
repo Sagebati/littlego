@@ -1,15 +1,15 @@
 import random
-import sys
 from random import shuffle
 
 import numpy as np
 from libgoban import IGame
 
 import ops
+from Agent import Agent
 from GoNeuralNetwork import GoNeuralNetwork
 
 
-class GoNNAgent:
+class GoNNAgent(Agent):
 
     def __init__(self, board_size):
         print("--- Initialization of Go Agent")
@@ -18,20 +18,22 @@ class GoNNAgent:
         self.g_old = np.full((1, board_size, board_size, 2), 0)
         print("Initialized - Agent")
 
-    def get_move(self, goban, player_turn, legals):
+    def get_move(self, state: IGame):
         """if player_turn == 1:
             goban = tuple(reversed(goban))
         goban = np.array(goban)
         g0 = ops.goban_to_nn_state(goban[0], self.board_size)
         g1 = ops.goban_to_nn_state(goban[1], self.board_size)
         goban = np.concatenate([g0, g1], axis=3)"""
+        goban = state.raw_goban_split()
+        player_turn = state.turn()
         goban, self.g_old = ops.goban_to_input_planes(goban, self.g_old, player_turn, self.board_size, dtype=int)
 
         player_feature_plane = np.full([self.board_size, self.board_size], player_turn)
         player_feature_plane = ops.goban_to_nn_state(player_feature_plane, self.board_size)
         planes = np.concatenate([goban, player_feature_plane], axis=3)
 
-        p, v = self.neural_network.get_move(planes, player_turn, legals)
+        p, v = self.neural_network.get_move(planes, player_turn, state.legals())
         move = np.argmax(p)
         return move
 
@@ -137,7 +139,7 @@ class GoNNAgent:
         len_train = train_states.shape[0]
         for i in range(1, epoch):
             # Get batch
-            if (batch_size == len_train):
+            if batch_size == len_train:
                 batch_states, batch_policies, batch_values = train_states, train_policies, train_values
             else:
                 idx = []
@@ -179,50 +181,3 @@ class GoNNAgent:
         test_p_acc, test_v_err, _, _ = self.neural_network.feed_forward_accuracies(test_states, test_policies,
                                                                                    test_values, 0)
         print("TEST      :\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(test_p_acc, test_v_err))
-
-
-if __name__ == '__main__':
-
-    if len(sys.argv) != 1:
-        # Supervised training
-        board_size = 19
-        goAgent = GoNNAgent(board_size)
-        goAgent.supervised_training(sys.argv[1])
-    else:
-        # Reinforcement training
-        board_size = 13
-        goAgent = GoNNAgent(board_size)
-
-        turn_max = int(board_size ** 2 * 2.)
-
-        for i in range(1000):
-
-            g = IGame(board_size)
-            g.display_goban()
-
-            total_turn = 0
-            while not g.over():
-                print("game {} - total_turn = {}".format(i, total_turn))
-                # goban = g.goban()
-                goban = g.raw_goban_split()
-                move = goAgent.get_move(goban, total_turn % 2, g.legals())
-                t_move = ops.move_scalar_to_tuple(move, board_size)
-                if t_move in g.legals():
-                    print(t_move)
-                    g.play(t_move)
-                else:
-                    print("(skip_move)")
-                    g.play(None)
-                g.display_goban()
-                total_turn += 1
-                if total_turn > turn_max:
-                    break
-
-            if total_turn > turn_max:
-                winner = 2  # draw
-                print("(Draw due to maximum moves)")
-            else:
-                score = g.outcome()
-                print(score)
-                winner = 2 if score[0] == score[1] else 0 if score[0] > score[1] else 1
-            goAgent.end_game(winner)
