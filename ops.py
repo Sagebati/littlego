@@ -310,7 +310,7 @@ def SGF_file_to_dataset(file_name):
     return states, policies, values, player_turn
 
 
-def SGF_folder_to_dataset(folder_name):
+def SGF_folder_to_dataset(folder_name, out):
     all_states = []
     all_policies = []
     all_values = []
@@ -332,7 +332,7 @@ def SGF_folder_to_dataset(folder_name):
             for turn in player_turn:
                 all_turn.append(turn)
 
-    np.savez(folder_name + "dataset",
+    np.savez(out + "dataset",
              states=all_states,
              policies=all_policies,
              values=all_values,

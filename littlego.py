@@ -10,10 +10,14 @@ def cli(verbose):
 
 @cli.command()
 @click.argument("path", type=click.Path(exists=True))
-def prepros(path):
+@click.option("-o", "--output", type=click.Path(), default="np_datasets/")
+def prepros(path, output):
     from ops import SGF_folder_to_dataset
+    import os
+    if not os.path.exists(output):
+        os.mkdir(output)
     # SGF_folder_rule_filter(sys.argv[1], "Chinese")
-    SGF_folder_to_dataset(path)
+    SGF_folder_to_dataset(path, output)
     # SGF_file_to_dataset(sys.argv[1])
 
 
