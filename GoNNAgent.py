@@ -3,13 +3,13 @@ import sys
 from random import shuffle
 
 import numpy as np
-from libshusaku import IGame
+from libgoban import IGame
 
 import ops
 from GoNeuralNetwork import GoNeuralNetwork
 
 
-class GoNNAgent():
+class GoNNAgent:
 
     def __init__(self, board_size):
         print("--- Initialization of Go Agent")
@@ -198,7 +198,7 @@ if __name__ == '__main__':
         for i in range(1000):
 
             g = IGame(board_size)
-            g.display()
+            g.display_goban()
 
             total_turn = 0
             while not g.over():
@@ -213,7 +213,7 @@ if __name__ == '__main__':
                 else:
                     print("(skip_move)")
                     g.play(None)
-                g.display()
+                g.display_goban()
                 total_turn += 1
                 if total_turn > turn_max:
                     break
@@ -226,18 +226,3 @@ if __name__ == '__main__':
                 print(score)
                 winner = 2 if score[0] == score[1] else 0 if score[0] > score[1] else 1
             goAgent.end_game(winner)
-
-"""l = g.legals()
-print(l)
-g.play(random.choice(l))
-goban = g.goban()
-
-print(goban)
-print(p)"""
-
-"""for i in range(0, 500):
-    l = g.legals()
-    g.play(random.choice(l))
-    #print(g.goban())
-    g.display()
-g.display()"""
