@@ -67,11 +67,14 @@ def reinforcement(board_size):
 @learn.command()
 @click.argument("path-dataset", type=click.Path(exists=True))
 @click.option("-s", "--board-size", default=19, type=click.Choice([9, 13, 19]))
-def supervised(path_dataset, board_size):
-    from GoNNAgent import GoNNAgent
+@click.option("-e", "--epoch", default=50000)
+@click.option("--report-freq", default=2500)
+def supervised(path_dataset, board_size, epoch, report_freq):
     # Supervised training
-    go_agent = GoNNAgent(board_size)
-    go_agent.supervised_training(path_dataset)
+    from GoNeuralNetwork import GoNeuralNetwork
+    from supervised import supervised_training
+    neural_network = GoNeuralNetwork(board_size)
+    supervised_training(path_dataset, board_size, neural_network, epoch, report_freq)
 
 
 if __name__ == "__main__":
