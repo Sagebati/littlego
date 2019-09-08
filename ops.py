@@ -1,9 +1,9 @@
-import sys
 import os
-from libshusaku import IGame
-import tensorflow as tf
+
 import numpy as np
-from tensorflow.contrib.layers import l2_regularizer, xavier_initializer, fully_connected, flatten
+import tensorflow as tf
+from libgoban import IGame
+from tensorflow.contrib.layers import xavier_initializer
 
 
 # --------------------------------------------
@@ -263,7 +263,7 @@ def SGF_file_to_dataset(file_name):
                 g.play((x, y))
                 g.play(None)
             g.play(None)  # Necessary because it's up to white to play
-        # g.display()
+        # g.display_goban()
         # Moves
         elif elem == "W" or elem == "B":
             player = 0 if elem == "B" else 1
@@ -295,7 +295,7 @@ def SGF_file_to_dataset(file_name):
                 g.play(None)
             else:
                 g.play((x, y))
-        # g.display()
+        # g.display_goban()
 
     print(file_name)
     print(winner)
@@ -346,10 +346,3 @@ def SGF_folder_rule_filter(folder_name, rule_filter):
             if is_filter:
                 print("remove {}".format(file_name))
                 os.remove(file_name)
-
-
-if __name__ == '__main__':
-    # SGF_folder_rule_filter(sys.argv[1], "Chinese")
-    SGF_folder_to_dataset(sys.argv[1])
-    # SGF_file_to_dataset(sys.argv[1])
-    pass

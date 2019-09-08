@@ -6,5 +6,5 @@ Go IA.
 
 ## Dependencies
 
-libshusaku
+libgoban
 
