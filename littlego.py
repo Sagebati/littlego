@@ -45,7 +45,7 @@ def reinforcement(board_size):
         while not g.over():
             print("game {} - total_turn = {}".format(i, total_turn))
 
-            move = go_agent.get_move(g)
+            move = go_agent.select_move(g)
             t_move = ops.move_scalar_to_tuple(move, board_size)
             if t_move in g.legals():
                 print(t_move)

@@ -15,7 +15,7 @@ class GoNNAgent(Agent):
         self.g_old = np.full((1, board_size, board_size, 2), 0)
         print("Initialized - Agent")
 
-    def get_move(self, state: IGame):
+    def select_move(self, state: IGame):
         """if player_turn == 1:
             goban = tuple(reversed(goban))
         goban = np.array(goban)
