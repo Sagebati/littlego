@@ -10,10 +10,14 @@ def cli(verbose):
 
 @cli.command()
 @click.argument("path", type=click.Path(exists=True))
-def prepros(path):
+@click.option("-o", "--output", type=click.Path(), default="np_datasets/")
+def prepros(path, output):
     from ops import SGF_folder_to_dataset
+    import os
+    if not os.path.exists(output):
+        os.mkdir(output)
     # SGF_folder_rule_filter(sys.argv[1], "Chinese")
-    SGF_folder_to_dataset(path)
+    SGF_folder_to_dataset(path, output)
     # SGF_file_to_dataset(sys.argv[1])
 
 
@@ -41,7 +45,7 @@ def reinforcement(board_size):
         while not g.over():
             print("game {} - total_turn = {}".format(i, total_turn))
 
-            move = go_agent.get_move(g)
+            move = go_agent.select_move(g)
             t_move = ops.move_scalar_to_tuple(move, board_size)
             if t_move in g.legals():
                 print(t_move)
@@ -67,11 +71,14 @@ def reinforcement(board_size):
 @learn.command()
 @click.argument("path-dataset", type=click.Path(exists=True))
 @click.option("-s", "--board-size", default=19, type=click.Choice([9, 13, 19]))
-def supervised(path_dataset, board_size):
-    from GoNNAgent import GoNNAgent
+@click.option("-e", "--epoch", default=50000)
+@click.option("--report-freq", default=2500)
+def supervised(path_dataset, board_size, epoch, report_freq):
     # Supervised training
-    go_agent = GoNNAgent(board_size)
-    go_agent.supervised_training(path_dataset)
+    from GoNeuralNetwork import GoNeuralNetwork
+    from supervised import supervised_training
+    neural_network = GoNeuralNetwork(board_size)
+    supervised_training(path_dataset, board_size, neural_network, epoch, report_freq)
 
 
 if __name__ == "__main__":

@@ -218,12 +218,11 @@ def move_scalar_to_tuple(move, board_size):
 # ------------------------------------------
 
 def SGF_file_parser(file_name):
-    fichier = open(file_name)
-    content = fichier.read()
-    fichier.close()
-    content = content.replace("[]", '\n  \n').replace('[', '\n').replace(']', '\n').replace(';', '\n')
-    content = content.split("\n")
-    content = list(filter(lambda a: a != '' and a != ')' and a != '(', content))
+    with open(file_name, "r") as fichier:
+        content = fichier.read()
+        content = content.replace("[]", '\n  \n').replace('[', '\n').replace(']', '\n').replace(';', '\n')
+        content = content.split("\n")
+        content = list(filter(lambda a: a != '' and a != ')' and a != '(', content))
     return content
 
 
@@ -238,6 +237,7 @@ def SGF_file_to_dataset(file_name):
     size = 19
     handicap = 0
     winner = 2
+    points_or_resign = ""
 
     g = IGame(size)
 
@@ -251,9 +251,13 @@ def SGF_file_to_dataset(file_name):
         # Handicap
         elif elem == "HA":
             handicap = int(content[i + 1])
+        elif elem == "KM":
+            komi = float(content[i + 1])
+            g.set_komi(komi)
         # Result
         elif elem == "RE":
-            winner = content[i + 1].split("+")[0]
+            splited = content[i + 1].split("+")
+            winner, points_or_resign = splited[0], splited[1]
             winner = 0 if winner == "B" else 1 if winner == "W" else 2
         # Handicap moves
         elif elem == "AW" or elem == "AB":
@@ -297,14 +301,16 @@ def SGF_file_to_dataset(file_name):
                 g.play((x, y))
         # g.display_goban()
 
+    if points_or_resign == "Resign" or points_or_resign == "R":
+        g.resign(True if winner == 1 else False)
     print(file_name)
-    print(winner)
+    print(str(winner) + " " + points_or_resign)
     print(g.outcome())
 
     return states, policies, values, player_turn
 
 
-def SGF_folder_to_dataset(folder_name):
+def SGF_folder_to_dataset(folder_name, out):
     all_states = []
     all_policies = []
     all_values = []
@@ -326,7 +332,7 @@ def SGF_folder_to_dataset(folder_name):
             for turn in player_turn:
                 all_turn.append(turn)
 
-    np.savez(folder_name + "dataset",
+    np.savez(out + "dataset",
              states=all_states,
              policies=all_policies,
              values=all_values,
