@@ -157,13 +157,9 @@ def dirichlet_noise(plane, alpha, epsilon):
     return out
 
 
-# Data augmentation from raw neural network inputs
-def data_augmentation(planes, policy, board_size):
-    out_planes = []
-    out_policies = []
-
-    num_board_planes = planes.shape[3] - 1
-
+def data_augmentation_single(planes, policy, board_size, k_rotate, reflection):
+    num_board_planes = planes.shape[3] - 1    
+    
     planes = np.copy(planes)
     p = np.copy(policy)
     p_pass = p[0][-1]
@@ -171,18 +167,29 @@ def data_augmentation(planes, policy, board_size):
     t_plane = {}
     for i in range(num_board_planes):
         t_plane[i] = np.reshape(np.copy(planes[:, :, :, i]), (board_size, board_size))
-    for reflect in (False, True):
-        for k_rotate in range(0, 4):
-            # Rotate/reflect policy out
-            new_p = dihedral_transformation(t_p, k_rotate, reflect)
-            new_p = np.append(new_p, p_pass)
-            new_p = np.reshape(new_p, (1, board_size * board_size + 1))
+    
+    # Rotate/reflect policy out
+    new_p = dihedral_transformation(t_p, k_rotate, reflection)
+    new_p = np.append(new_p, p_pass)
+    new_p = np.reshape(new_p, (1, board_size * board_size + 1))
+    
+    # Rotate/reflect planes
+    for i in range(num_board_planes):
+        new_plane = dihedral_transformation(t_plane[i], k_rotate, reflection)
+        new_plane = np.reshape(new_plane, (1, board_size, board_size))
+        planes[:, :, :, i] = new_plane
+        
+    return planes, new_p
 
-            # Rotate/reflect planes
-            for i in range(num_board_planes):
-                new_plane = dihedral_transformation(t_plane[i], k_rotate, reflect)
-                new_plane = np.reshape(new_plane, (1, board_size, board_size))
-                planes[:, :, :, i] = new_plane
+
+# Data augmentation from raw neural network inputs
+def data_augmentation(planes, policy, board_size):
+    out_planes = []
+    out_policies = []
+
+    for reflection in (False, True):
+        for k_rotate in range(0, 4):
+            planes, new_p = data_augmentation_single(planes, policy, board_size, k_rotate, reflection)
 
             out_planes.append(np.copy(planes))
             out_policies.append(np.copy(new_p))
@@ -213,6 +220,13 @@ def goban_to_input_planes(goban, g_old, player_turn, size, dtype=bool):
     goban = np.concatenate([g0, g0_old, g1, g1_old], axis=3).astype(dtype)
     g_old = np.concatenate([g1, g0], axis=3)
     return goban, g_old
+
+
+def add_player_feature_plane(goban, board_size, player_turn):
+    player_feature_plane = np.full((board_size, board_size), player_turn)
+    player_feature_plane = goban_to_nn_state(player_feature_plane, board_size)
+    planes = np.concatenate([goban, player_feature_plane], axis=3)
+    return planes
 
 
 def move_scalar_to_tuple(move, board_size):
