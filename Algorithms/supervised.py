@@ -8,9 +8,7 @@ def get_batch(train_states, train_policies, train_values, batch_size, len_train)
     if batch_size == len_train:
         batch_states, batch_policies, batch_values = train_states, train_policies, train_values
     else:
-        idx = []
-        while len(idx) < batch_size:
-            idx.append(np.random.randint(low=0, high=len_train))
+        idx = np.random.randint(low=0, high=len_train, size=batch_size)
         batch_states, batch_policies, batch_values = train_states[idx], train_policies[idx], train_values[idx]
         
     return batch_states, batch_policies, batch_values
@@ -55,6 +53,10 @@ def supervised_training(dataset, board_size, neural_network,
         t_values = t_values[:data_size]
         player_turn = player_turn[:data_size]
 
+    print(t_states.shape)
+    print(t_policies.shape)
+    print(t_values.shape)
+
     # Shape states to neural network input shape
     print("Data shaping")
     tt_states = []
@@ -68,16 +70,11 @@ def supervised_training(dataset, board_size, neural_network,
 
     input_planes = t_states.shape[-1]
 
-    # Data augmentation
-    print("Data augmentation")
-    states, policies, values = [], [], []
-    for i in range(len(t_states)):
-        state, policy, value = t_states[i], t_policies[i], t_values[i]
-        new_states, new_policies = ops.data_augmentation(state, policy, board_size)
-        for j in range(len(new_states)):
-            states.append(new_states[j])
-            policies.append(new_policies[j])
-            values.append(value)
+    print(t_states.shape)
+    print(t_policies.shape)
+    print(t_values.shape)
+
+    states, policies, values = t_states, t_policies, t_values
 
     # Shuffle
     print("Data shuffling")
@@ -86,9 +83,15 @@ def supervised_training(dataset, board_size, neural_network,
     states, policies, values = zip(*temp)
     states, policies, values = np.array(states), np.array(policies), np.array(values)
 
-    states = np.reshape(states, (-1, board_size, board_size, input_planes))
-    policies = np.reshape(policies, (-1, board_size ** 2 + 1))
-    values = np.reshape(values, (-1, 1))
+    print(states.shape)
+    print(policies.shape)
+    print(values.shape)
+    
+    states, policies, values = ops.reshape_data_for_network(states, policies, values, board_size, input_planes)
+    
+    print(states.shape)
+    print(policies.shape)
+    print(values.shape)
 
     # Data splitting
     print("Data splitting")
@@ -105,25 +108,27 @@ def supervised_training(dataset, board_size, neural_network,
 
         validation_states, validation_policies, validation_values = test_states, test_policies, test_values
 
-    train_p_loss = []
-    train_v_loss = []
-    val_p_loss = []
-    val_v_loss = []
     # Training
     print("Training")
     print(train_states.shape)
     print(train_policies.shape)
     print(train_values.shape)
     
-    neural_network.save_model()
+    #neural_network.save_model()
     len_train = train_states.shape[0]
+    train_p_loss = []
+    train_v_loss = []
+    val_p_loss = []
+    val_v_loss = []    
     
     for ep in range(epoch):
         batch_loss, batch_p_acc, batch_v_err = [], [], []
         for it in range(len_train // batch_size):
             # Get batch
             batch_states, batch_policies, batch_values = get_batch(train_states, train_policies, train_values, batch_size, len_train)
-    
+            idx = np.random.randint(low=0, high=8)
+            batch_states, batch_policies, batch_values = ops.data_augmentation(batch_states, batch_policies, batch_values, board_size, input_planes, idx=idx)
+    c
             # Train model on this batch
             loss, p_acc, v_err = neural_network.train(batch_states, batch_policies, batch_values, epoch)
             batch_loss.append(loss)
@@ -131,16 +136,20 @@ def supervised_training(dataset, board_size, neural_network,
             batch_v_err.append(v_err)
     
         # Print results
-        print("\nMinibatch {} : \nloss = {}".format(ep, mean(batch_loss)))
-        print("TRAINING  :\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(mean(batch_p_acc), mean(batch_v_err)))
+        print("\n#####################")
+        print("# Epoch {} / {}: \nloss = {}".format(ep, epoch, mean(batch_loss)))
+        print("##############")
+        print("# TRAINING  :\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(mean(batch_p_acc), mean(batch_v_err)))
 
         if test_size != 0:
             val_p_acc, val_v_err, p_out, v_out = neural_network.feed_forward_accuracies(validation_states,
                                                                                         validation_policies,
                                                                                         validation_values,
                                                                                         epoch)
-            print("\nVALIDATION:\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(val_p_acc,
+            print("##############")
+            print("# VALIDATION:\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(val_p_acc,
                                                                                              val_v_err))
+            print("#####################")
             val_p_loss.append(val_p_acc)
             val_v_loss.append(val_v_err)
             train_p_loss.append(p_acc)
@@ -152,8 +161,8 @@ def supervised_training(dataset, board_size, neural_network,
                      v_v_loss=val_v_loss)
         print()
 
-        if ep % save_frequency == 0:
-            neural_network.save_model(False)
+        """if ep % save_frequency == 0:
+            neural_network.save_model(False)"""
 
     print("Optimization Finished!")
     test_p_acc, test_v_err, _, _ = neural_network.feed_forward_accuracies(test_states, test_policies,

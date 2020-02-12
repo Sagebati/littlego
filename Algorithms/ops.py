@@ -6,9 +6,9 @@ from libgoban import IGame
 from tensorflow.contrib.layers import xavier_initializer
 
 
-# --------------------------------------------
-# ---------------- Activation ----------------
-# --------------------------------------------
+#################################################
+# Activation
+#################################################
 
 def softmax(z):
     assert len(z.shape) == 2
@@ -39,9 +39,9 @@ def leaky_relu(X, alpha=0.2):
     return tf.maximum(X, alpha * X)
 
 
-# ------------------------------------------------
-# ---------------- Network Layers ----------------
-# ------------------------------------------------
+#################################################
+# Network Layers
+#################################################
 
 # https://arxiv.org/abs/1302.4389
 # This doesn't need a scope. There aren't trainable parameters here. It's just a pool
@@ -132,9 +132,16 @@ def residual_conv_block(inputs, filters, kernel, stride, activation, layer_name,
     return layer
 
 
-# ----------------------------------------------------------
-# ---------------- Noise and transformation ----------------
-# ----------------------------------------------------------
+#################################################
+# Data augmentation and transformation
+#################################################
+
+def dirichlet_noise(plane, alpha, epsilon):
+    out = np.copy(plane)
+    alphas = np.full(plane.shape, alpha)
+    out = (1 - epsilon) * out + epsilon * np.random.dirichlet(alphas)
+    return out
+
 
 def dihedral_transformation(plane, k_rotate, reflection=False):
     new_plane = np.copy(plane)
@@ -150,14 +157,7 @@ def dihedral_transformation_random(plane):
     return dihedral_transformation(plane, k_rotate, reflection)
 
 
-def dirichlet_noise(plane, alpha, epsilon):
-    out = np.copy(plane)
-    alphas = np.full(plane.shape, alpha)
-    out = (1 - epsilon) * out + epsilon * np.random.dirichlet(alphas)
-    return out
-
-
-def data_augmentation_single(planes, policy, board_size, k_rotate, reflection):
+def data_transformation(planes, policy, board_size, k_rotate, reflection):
     num_board_planes = planes.shape[3] - 1    
     
     planes = np.copy(planes)
@@ -183,13 +183,13 @@ def data_augmentation_single(planes, policy, board_size, k_rotate, reflection):
 
 
 # Data augmentation from raw neural network inputs
-def data_augmentation(planes, policy, board_size):
+def data_augmentation_single(planes, policy, board_size):
     out_planes = []
     out_policies = []
 
     for reflection in (False, True):
         for k_rotate in range(0, 4):
-            planes, new_p = data_augmentation_single(planes, policy, board_size, k_rotate, reflection)
+            planes, new_p = data_transformation(planes, policy, board_size, k_rotate, reflection)
 
             out_planes.append(np.copy(planes))
             out_policies.append(np.copy(new_p))
@@ -197,8 +197,45 @@ def data_augmentation(planes, policy, board_size):
     return out_planes, out_policies
 
 
-def letter_to_number(letter):
-    return ord(letter) - 97
+def data_augmentation(states, policies, values, board_size, input_planes, idx=None):
+    # states   [N, size, size, no_input_planes]
+    # policies [N, size * size + 1]
+    # values   [N, 1]
+    # idx: value between 0 and 7 or None (choose a particular augmentation or all)
+    
+    N = states.shape[0]
+    t_states, t_policies, t_values = reshape_data_for_augmentation(states, policies, values, board_size, input_planes)
+    states, policies, values = [], [], []
+    for i in range(len(t_states)):
+        state, policy, value = t_states[i], t_policies[i], t_values[i]
+        new_states, new_policies = data_augmentation_single(state, policy, board_size)
+        for j in range(len(new_states)):
+            states.append(new_states[j])
+            policies.append(new_policies[j])
+            values.append(value)
+    states, policies, values = np.array(states), np.array(policies), np.array(values)
+    if idx is not None:
+        idxs = list(range(idx, N*8, 8))
+        states, policies, values = states[idxs], policies[idxs], values[idxs]
+    return reshape_data_for_network(states, policies, values, board_size, input_planes)
+
+
+#################################################
+# Reshaping
+#################################################
+
+def reshape_data_for_network(states, policies, values, board_size, input_planes):
+    t_states = np.reshape(states, (-1, board_size, board_size, input_planes))
+    t_policies = np.reshape(policies, (-1, board_size ** 2 + 1))
+    t_values = np.reshape(values, (-1, 1))
+    return t_states, t_policies, t_values
+    
+    
+def reshape_data_for_augmentation(states, policies, values, board_size, input_planes):
+    t_states = np.reshape(states, (-1, 1, board_size, board_size, input_planes))
+    t_policies = np.reshape(policies, (-1, 1, board_size ** 2 + 1))
+    t_values = np.reshape(values, (-1, ))
+    return t_states, t_policies, t_values
 
 
 def goban_1D_to_goban_2D(goban, size):
@@ -229,6 +266,14 @@ def add_player_feature_plane(goban, board_size, player_turn):
     return planes
 
 
+#################################################
+# Other
+#################################################
+
+def letter_to_number(letter):
+    return ord(letter) - 97
+    
+    
 def move_scalar_to_tuple(move, board_size):
     return int(move / board_size), move % board_size
 
