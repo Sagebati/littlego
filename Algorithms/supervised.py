@@ -4,12 +4,20 @@ import ops
 from statistics import mean
 
 
-def get_batch(train_states, train_policies, train_values, batch_size, len_train):
+def data_shuffling(states, policies, values):
+    temp = list(zip(states, policies, values))
+    random.shuffle(temp)
+    t_states, t_policies, t_values = zip(*temp)
+    t_states, t_policies, t_values = np.array(t_states), np.array(t_policies), np.array(t_values)
+    return t_states, t_policies, t_values
+
+
+def get_batch(states, policies, values, batch_size, len_train):
     if batch_size == len_train:
-        batch_states, batch_policies, batch_values = train_states, train_policies, train_values
+        batch_states, batch_policies, batch_values = states, policies, values
     else:
         idx = np.random.randint(low=0, high=len_train, size=batch_size)
-        batch_states, batch_policies, batch_values = train_states[idx], train_policies[idx], train_values[idx]
+        batch_states, batch_policies, batch_values = states[idx], policies[idx], values[idx]
         
     return batch_states, batch_policies, batch_values
 
@@ -42,56 +50,32 @@ def supervised_training(dataset, board_size, neural_network,
     if data_size > 0:
         # pre-shuffle
         print("(pre-shuffle)")
-        temp = list(zip(t_states, t_policies, t_values))
-        random.shuffle(temp)
-        t_states, t_policies, t_values = zip(*temp)
-        t_states, t_policies, t_values = np.array(t_states), np.array(t_policies), np.array(t_values)
+        t_states, t_policies, t_values = data_shuffling(t_states, t_policies, t_values)
     
         print("(subsample dataset)", data_size)
         t_states = t_states[:data_size]
         t_policies = t_policies[:data_size]
         t_values = t_values[:data_size]
         player_turn = player_turn[:data_size]
-
-    print(t_states.shape)
-    print(t_policies.shape)
-    print(t_values.shape)
+    # (N, 1, 19, 19, 4) | (N, 362) | (N,)
 
     # Shape states to neural network input shape
     print("Data shaping")
     tt_states = []
-    tt_policies = []
     for i in range(len(t_states)):
         planes = ops.add_player_feature_plane(t_states[i], board_size, player_turn[i])
         tt_states.append(planes)
-        tt_policies.append(np.reshape(t_policies[i], (1, board_size ** 2 + 1)))
     t_states = np.array(tt_states)
-    t_policies = np.array(tt_policies)
-
     input_planes = t_states.shape[-1]
+    states, policies, values = ops.reshape_data_for_network(t_states, t_policies, t_values, board_size, input_planes)
+    # (N, 19, 19, 5) | (N, 362) | (N, 1)
 
-    print(t_states.shape)
-    print(t_policies.shape)
-    print(t_values.shape)
-
-    states, policies, values = t_states, t_policies, t_values
+    """print("Data augmentation")
+    states, policies, values = ops.data_augmentation(states, policies, values, board_size, input_planes)"""
 
     # Shuffle
     print("Data shuffling")
-    temp = list(zip(states, policies, values))
-    random.shuffle(temp)
-    states, policies, values = zip(*temp)
-    states, policies, values = np.array(states), np.array(policies), np.array(values)
-
-    print(states.shape)
-    print(policies.shape)
-    print(values.shape)
-    
-    states, policies, values = ops.reshape_data_for_network(states, policies, values, board_size, input_planes)
-    
-    print(states.shape)
-    print(policies.shape)
-    print(values.shape)
+    states, policies, values = data_shuffling(states, policies, values)
 
     # Data splitting
     print("Data splitting")
@@ -128,7 +112,7 @@ def supervised_training(dataset, board_size, neural_network,
             batch_states, batch_policies, batch_values = get_batch(train_states, train_policies, train_values, batch_size, len_train)
             idx = np.random.randint(low=0, high=8)
             batch_states, batch_policies, batch_values = ops.data_augmentation(batch_states, batch_policies, batch_values, board_size, input_planes, idx=idx)
-    c
+
             # Train model on this batch
             loss, p_acc, v_err = neural_network.train(batch_states, batch_policies, batch_values, epoch)
             batch_loss.append(loss)
@@ -168,6 +152,10 @@ def supervised_training(dataset, board_size, neural_network,
     test_p_acc, test_v_err, _, _ = neural_network.feed_forward_accuracies(test_states, test_policies,
                                                                           test_values, 0)
     print("TEST      :\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(test_p_acc, test_v_err))
+
+
+
+
 
 
 

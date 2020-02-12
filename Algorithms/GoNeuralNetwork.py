@@ -18,7 +18,8 @@ memory_capacity = 500000  # The size of the SarstReplayMemory class
 useLSTM = False  # let False | TODO - implement LSTM
 trace_length = 1
 
-learning_rate = 0.001
+learning_rate = 0.002
+print(learning_rate)
 momentum = 0.9
 
 # weight_initializer = tf.truncated_normal_initializer()
@@ -47,6 +48,7 @@ v_dense_size = 256
 
 # Regularization
 l2_beta = 0.001
+print(l2_beta)
 useBatchNorm = True
 drop_out = 0.  # conv drop out
 head_drop_out = drop_out  # dense drop out
