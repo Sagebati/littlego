@@ -110,7 +110,7 @@ class GoNeuralNetwork:
         with tf.device('/gpu:0'):
             # with tf.Session() as session: # this line doesn't work when python is embedded
             session = tf.Session()
-            self.initNetwork(session)
+            self.init_network(session)
 
         self.saver = tf.train.Saver()  # tf.all_variables()
         self.restore_model()
