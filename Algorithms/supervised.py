@@ -104,6 +104,7 @@ def supervised_training(dataset, board_size, neural_network,
     train_v_loss = []
     val_p_loss = []
     val_v_loss = []    
+    total_it = 0
     
     for ep in range(epoch):
         batch_loss, batch_p_acc, batch_v_err = [], [], []
@@ -114,12 +115,14 @@ def supervised_training(dataset, board_size, neural_network,
             batch_states, batch_policies, batch_values = ops.data_augmentation(batch_states, batch_policies, batch_values, board_size, input_planes, idx=idx)
 
             # Train model on this batch
-            loss, p_acc, v_err = neural_network.train(batch_states, batch_policies, batch_values, epoch)
+            loss, p_acc, v_err = neural_network.train(batch_states, batch_policies, batch_values, total_it)
+            total_it += 1
             batch_loss.append(loss)
             batch_p_acc.append(p_acc)
             batch_v_err.append(v_err)
     
         # Print results
+        print(neural_network.get_learning_rate(total_it))
         print("\n#####################")
         print("# Epoch {} / {}: \nloss = {}".format(ep, epoch, mean(batch_loss)))
         print("##############")
@@ -129,7 +132,7 @@ def supervised_training(dataset, board_size, neural_network,
             val_p_acc, val_v_err, p_out, v_out = neural_network.feed_forward_accuracies(validation_states,
                                                                                         validation_policies,
                                                                                         validation_values,
-                                                                                        epoch)
+                                                                                        ep)
             print("##############")
             print("# VALIDATION:\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(val_p_acc,
                                                                                              val_v_err))
