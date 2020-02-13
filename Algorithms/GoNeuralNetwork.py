@@ -115,7 +115,7 @@ class GoNeuralNetwork:
         self.saver = tf.train.Saver()  # tf.all_variables()
         self.restore_model()
 
-    def initNetwork(self, tf_session):
+    def init_network(self, tf_session):
         self.session = tf_session  # a tensorflow session
 
         self.replay_memory = SarstReplayMemory(memory_capacity,
