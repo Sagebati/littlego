@@ -37,7 +37,7 @@ learning_rate_min = 0.00001
 momentum = 0.9
 
 # - Regularization
-l2_beta = 0.002
+l2_beta = 0.001
 print(l2_beta)
 useBatchNorm = True
 drop_out = 0.                   # conv drop out
@@ -54,7 +54,7 @@ stride = 1      # S
 num_blocks = 5  # each block has 2 conv layers
 
 # - Policy head parameters
-p_filters = 32 # {2, 32}
+p_filters = 2 # {2, 32}
 print(p_filters)
 p_kernel_size = 1               # F
 p_stride = 1                    # S

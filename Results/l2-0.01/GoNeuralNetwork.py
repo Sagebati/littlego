@@ -19,6 +19,7 @@ activation = tf.nn.leaky_relu
 # activation = tf.nn.relu
 
 batch_size = 32             # total batch size
+print(batch_size)
 memory_capacity = 500000    # The size of the SarstReplayMemory class
 useLSTM = False             # let False | TODO - implement LSTM
 trace_length = 1
@@ -37,7 +38,7 @@ learning_rate_min = 0.00001
 momentum = 0.9
 
 # - Regularization
-l2_beta = 0.002
+l2_beta = 0.01
 print(l2_beta)
 useBatchNorm = True
 drop_out = 0.                   # conv drop out
@@ -54,15 +55,13 @@ stride = 1      # S
 num_blocks = 5  # each block has 2 conv layers
 
 # - Policy head parameters
-p_filters = 32 # {2, 32}
-print(p_filters)
+p_filters = 32
 p_kernel_size = 1               # F
 p_stride = 1                    # S
 p_activation = tf.nn.softmax    # output policy activation
 
 # - Value head parametersd
-v_filters = 32 # {1, 32}
-print(v_filters)
+v_filters = 32
 v_kernel_size = 1           # F
 v_stride = 1                # S
 v_activation = tf.nn.tanh   # output value activation
@@ -174,9 +173,6 @@ class GoNeuralNetwork:
             policy_conv_out_size = ops.conv_out_size(tower_conv_out_size, p_kernel_size, 0, p_stride) * p_filters
 
             # - Declare weights and biases
-            policy_shape = [policy_conv_out_size, self.policy_size]
-            value_shape = [value_conv_out_size, v_dense_size]
-            value_out_shape = [v_dense_size, 1]
             weights = {
                 'policy': tf.get_variable('w_policy', shape=[policy_conv_out_size, self.policy_size],
                                           initializer=tf.contrib.layers.xavier_initializer()),
@@ -202,7 +198,6 @@ class GoNeuralNetwork:
             policy_conv = tf.contrib.layers.flatten(policy_conv)
             self.policy_out = ops.basic_layer(policy_conv, weights["policy"], biases["policy"], tf.identity, False, 0.0,
                                               self.is_train)
-            """self.policy_out = ops.basic_layer(policy_conv, policy_shape, tf.identity, "policy", False, 0.0, self.is_train)"""
             self.policy_out_prob = p_activation(self.policy_out)
 
             # - Value head
@@ -212,9 +207,7 @@ class GoNeuralNetwork:
             value_out = ops.basic_layer(value_conv, weights["value"], biases["value"], activation, False, head_drop_out,
                                         self.is_train)
             self.value_out = ops.basic_layer(value_out, weights["value_out"], biases["value_out"], v_activation, False,
-                                             0.0, self.is_train)                                        
-            """value_out = ops.basic_layer(value_conv, value_shape, activation, "value", False, head_drop_out, self.is_train)"""
-            """self.value_out = ops.basic_layer(value_out, value_out_shape, v_activation, "value_out", False, 0.0, self.is_train)"""
+                                             0.0, self.is_train)
 
     # ----- Optimizer -----
     def learning_rate_scheduling(self):
@@ -252,10 +245,10 @@ class GoNeuralNetwork:
             self.learning_rate = self.learning_rate_scheduling()
 
             # Optimizer
-            # opt = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
+            # opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
             opt = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
-            # opt = tf.train.RMSPropOptimizer(self.learning_rate, momentum=momentum)
-            # opt = tf.train.MomentumOptimizer(self.learning_rate, momentum)
+            # opt = tf.train.RMSPropOptimizer(learning_rate, momentum=momentum)
+            # opt = tf.train.MomentumOptimizer(learning_rate, momentum)
 
             # Gradient clipping and optimization
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)

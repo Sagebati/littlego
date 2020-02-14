@@ -62,6 +62,39 @@ def maxout(X, num_maxout_units, axis=None):
     return tf.reduce_max(tf.reshape(X, output_shape), -1, keep_dims=False)
 
 
+##############
+# Dense
+##############
+def dense(X, shape, w_initializer, name="dense"):
+    with tf.variable.scope(name):
+        W = tf.get_variable('W_dense', shape=shape, initializer=w_initializer)
+        b = tf.get_variable('b_dense', shape=[shape[-1]],
+                                             initializer=tf.constant_initializer(0.0))
+        return tf.matmul(X, W) + b
+
+
+"""def basic_layer(inputs, shape, activation, layer_name, use_batch_norm, drop_out, is_train,
+                    weight_initializer=tf.contrib.layers.xavier_initializer()):
+    layer = dense(inputs, shape, weight_initializer, name=layer_name)
+    if use_batch_norm:
+        layer = tf.layers.batch_normalization(layer, training=is_train)
+    layer = activation(layer)
+    layer = tf.layers.dropout(layer, rate=drop_out, training=is_train)
+    return layer"""
+
+
+def basic_layer(inputs, weights, biases, activation, use_batch_norm, drop_out, is_train):
+    layer = tf.matmul(inputs, weights) + biases
+    if use_batch_norm:
+        layer = tf.layers.batch_normalization(layer, training=is_train)
+    layer = activation(layer)
+    layer = tf.layers.dropout(layer, rate=drop_out, training=is_train)
+    return layer
+
+
+##############
+# Conv
+##############
 def conv(X,
          output_filter_size,
          kernel=[5, 5],
@@ -94,15 +127,6 @@ def conv_out_size(W, F, P, S):
     # P : padding
     # S : stride
     return (W - F + 2 * P) / S + 1
-
-
-def basic_layer(inputs, weights, biases, activation, use_batch_norm, drop_out, is_train):
-    layer = tf.matmul(inputs, weights) + biases
-    if use_batch_norm:
-        layer = tf.layers.batch_normalization(layer, training=is_train)
-    layer = activation(layer)
-    layer = tf.layers.dropout(layer, rate=drop_out, training=is_train)
-    return layer
 
 
 def conv_layer(inputs, filters, kernel, stride, activation, layer_name, use_batch_norm, drop_out,
