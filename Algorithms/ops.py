@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 from libgoban import IGame
 from tensorflow.contrib.layers import xavier_initializer
+import itertools
 
 
 #################################################
@@ -88,12 +89,11 @@ def conv(X,
                                            name="conv2d"), b)
 
 
-# ------------------------------
-# W : input size (width or height)
-# F : filters size
-# P : padding
-# S : stride
 def conv_out_size(W, F, P, S):
+    # W : input size (width or height)
+    # F : filters size
+    # P : padding
+    # S : stride
     return (W - F + 2 * P) / S + 1
 
 
@@ -137,14 +137,13 @@ def residual_conv_block(inputs, filters, kernel, stride, activation, layer_name,
 #################################################
 
 def dirichlet_noise(plane, alpha, epsilon):
-    out = np.copy(plane)
     alphas = np.full(plane.shape, alpha)
-    out = (1 - epsilon) * out + epsilon * np.random.dirichlet(alphas)
+    out = (1 - epsilon) * plane + epsilon * np.random.dirichlet(alphas)
     return out
 
 
 def dihedral_transformation(plane, k_rotate, reflection=False):
-    new_plane = np.copy(plane)
+    new_plane = plane
     if reflection:
         new_plane = np.flip(new_plane, 1)
     new_plane = np.rot90(new_plane, k_rotate)
@@ -152,47 +151,51 @@ def dihedral_transformation(plane, k_rotate, reflection=False):
 
 
 def dihedral_transformation_random(plane):
-    k_rotate = np.random.randint(low=0, high=5)
+    k_rotate = np.random.randint(low=0, high=4)
     reflection = [True, False][np.random.randint(low=0, high=2)]
     return dihedral_transformation(plane, k_rotate, reflection)
 
 
 def data_transformation(planes, policy, board_size, k_rotate, reflection):
-    num_board_planes = planes.shape[3] - 1    
-    
-    planes = np.copy(planes)
-    p = np.copy(policy)
-    p_pass = p[0][-1]
-    t_p = np.reshape(p[0][:-1], (board_size, board_size))
-    t_plane = {}
-    for i in range(num_board_planes):
-        t_plane[i] = np.reshape(np.copy(planes[:, :, :, i]), (board_size, board_size))
+    num_board_planes = planes.shape[3] - 1 # "- 1" to not include player feature plane
     
     # Rotate/reflect policy out
+    p_pass = policy[0][-1]
+    t_p = np.reshape(policy[0][:-1], (board_size, board_size))    
     new_p = dihedral_transformation(t_p, k_rotate, reflection)
     new_p = np.append(new_p, p_pass)
     new_p = np.reshape(new_p, (1, board_size * board_size + 1))
     
     # Rotate/reflect planes
+    new_planes = np.copy(planes)
     for i in range(num_board_planes):
-        new_plane = dihedral_transformation(t_plane[i], k_rotate, reflection)
+        temp_plane = np.reshape(planes[:, :, :, i], (board_size, board_size))
+        new_plane = dihedral_transformation(temp_plane, k_rotate, reflection)
         new_plane = np.reshape(new_plane, (1, board_size, board_size))
-        planes[:, :, :, i] = new_plane
+        new_planes[:, :, :, i] = new_plane
         
-    return planes, new_p
+    return new_planes, new_p
 
 
 # Data augmentation from raw neural network inputs
-def data_augmentation_single(planes, policy, board_size):
+def data_augmentation_single(planes, policy, board_size, idx=None):
     out_planes = []
     out_policies = []
 
-    for reflection in (False, True):
-        for k_rotate in range(0, 4):
-            planes, new_p = data_transformation(planes, policy, board_size, k_rotate, reflection)
+    all_reflection = [False, True]
+    all_rotate = list(range(0, 4))
+    all_transformation = list(itertools.product(all_reflection, all_rotate))
+    if idx is None:
+        reflection_to_do, rotate_to_do = all_reflection, all_rotate
+    else:
+        reflection_to_do, rotate_to_do = [all_transformation[idx][0]], [all_transformation[idx][1]]
 
-            out_planes.append(np.copy(planes))
-            out_policies.append(np.copy(new_p))
+    for reflection in reflection_to_do:
+        for k_rotate in rotate_to_do:
+            new_planes, new_p = data_transformation(planes, policy, board_size, k_rotate, reflection)
+
+            out_planes.append(new_planes)
+            out_policies.append(new_p)
 
     return out_planes, out_policies
 
@@ -203,21 +206,21 @@ def data_augmentation(states, policies, values, board_size, input_planes, idx=No
     # values   [N, 1]
     # idx: value between 0 and 7 or None (choose a particular augmentation or all)
     
-    N = states.shape[0]
     t_states, t_policies, t_values = reshape_data_for_augmentation(states, policies, values, board_size, input_planes)
-    states, policies, values = [], [], []
+    new_states, new_policies, new_values = [], [], []
     for i in range(len(t_states)):
         state, policy, value = t_states[i], t_policies[i], t_values[i]
-        new_states, new_policies = data_augmentation_single(state, policy, board_size)
-        for j in range(len(new_states)):
-            states.append(new_states[j])
-            policies.append(new_policies[j])
-            values.append(value)
-    states, policies, values = np.array(states), np.array(policies), np.array(values)
+        aug_states, aug_policies = data_augmentation_single(state, policy, board_size, idx=idx)
+        for j in range(len(aug_states)):
+            new_states.append(aug_states[j])
+            new_policies.append(aug_policies[j])
+            new_values.append(value)
+    new_states, new_policies, new_values = np.array(new_states), np.array(new_policies), np.array(new_values)
+    """N = states.shape[0]
     if idx is not None:
         idxs = list(range(idx, N*8, 8))
-        states, policies, values = states[idxs], policies[idxs], values[idxs]
-    return reshape_data_for_network(states, policies, values, board_size, input_planes)
+        new_states, new_policies, new_values = new_states[idxs], new_policies[idxs], new_values[idxs]"""
+    return reshape_data_for_network(new_states, new_policies, new_values, board_size, input_planes)
 
 
 #################################################

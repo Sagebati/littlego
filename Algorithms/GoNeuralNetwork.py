@@ -14,10 +14,12 @@ from SarstReplayMemory import SarstReplayMemory
 
 # --- Network parameters ---
 activation = tf.nn.leaky_relu
+# activation = tf.nn.selu
 # activation = tf.nn.elu
 # activation = tf.nn.relu
 
 batch_size = 32             # total batch size
+print(batch_size)
 memory_capacity = 500000    # The size of the SarstReplayMemory class
 useLSTM = False             # let False | TODO - implement LSTM
 trace_length = 1
@@ -25,18 +27,17 @@ trace_length = 1
 # weight_initializer = tf.truncated_normal_initializer()
 # weight_initializer = tf.contrib.layers.xavier_initializer()
 weight_initializer = tf.contrib.layers.variance_scaling_initializer()  # He_initializer
+# weight_initializer = tf.contrib.layers.variance_scaling_initializer(factor=1.0, mode='FAN_IN') # for selu
 
-# Optimizer
-learning_rate = 0.01
-print(learning_rate)
+# - Optimizer
+learning_rate = 0.001
 decay_learning_rate = True
-print(decay_learning_rate)
 learning_rate_decay = 0.1
-learning_rate_decay_steps = 200
+learning_rate_decay_steps = 100e3
 learning_rate_min = 0.00001
 momentum = 0.9
 
-# Regularization
+# - Regularization
 l2_beta = 0.001
 print(l2_beta)
 useBatchNorm = True
@@ -46,20 +47,20 @@ use_gradient_clipping = False
 clip_by_norm = True             # or by value
 gradient_clipping_norm = 5.0
 
-# Conv "Tower" parameters
+# - Conv "Tower" parameters
 input_planes = 5
 filters = 64
 kernel_size = 3 # F
 stride = 1      # S
 num_blocks = 5  # each block has 2 conv layers
 
-# Policy head parameters
+# - Policy head parameters
 p_filters = 32
 p_kernel_size = 1               # F
 p_stride = 1                    # S
 p_activation = tf.nn.softmax    # output policy activation
 
-# Value head parameters
+# - Value head parametersd
 v_filters = 32
 v_kernel_size = 1           # F
 v_stride = 1                # S
@@ -69,7 +70,7 @@ v_dense_size = 256
 # --- MCTS parameters ---
 c_puct = 4
 
-# Dirichlet noise
+# - Dirichlet noise
 dirichlet_alpha = 0.03
 dirichlet_epsilon = 0.25
 
@@ -402,7 +403,7 @@ class GoNeuralNetwork:
         # self.save_one_in_self_memory(planes, p, player_turn)
 
         # Data augmentation
-        out_planes, out_policies = ops.data_augmentation(planes, policy, self.board_size)
+        out_planes, out_policies = ops.data_augmentation_single(planes, policy, self.board_size)
         for i in range(len(out_planes)):
             new_planes = out_planes[i]
             new_policy = out_policies[i]

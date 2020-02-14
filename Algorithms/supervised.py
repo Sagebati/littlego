@@ -2,6 +2,7 @@ import random
 import numpy as np
 import ops
 from statistics import mean
+from time import time
 
 
 def data_shuffling(states, policies, values):
@@ -20,6 +21,23 @@ def get_batch(states, policies, values, batch_size, len_train):
         batch_states, batch_policies, batch_values = states[idx], policies[idx], values[idx]
         
     return batch_states, batch_policies, batch_values
+    
+    
+def data_splitting(states, policies, values, len_dataset, test_ratio, k):
+    data = {}
+    b_split = int(len_dataset * test_ratio * k)
+    e_split = int((b_split + len_dataset * test_ratio) % len_dataset)
+    data["test_states"], data["test_policies"], data["test_values"] = states[b_split:e_split], policies[b_split:e_split], values[
+                                                                                              b_split:e_split]
+    data["train_states"] = np.concatenate([states[0:b_split], states[e_split:]])
+    data["train_policies"] = np.concatenate([policies[0:b_split], policies[e_split:]])
+    data["train_values"] = np.concatenate([values[0:b_split], values[e_split:]])
+    
+    data["validation_states"] = data["test_states"]
+    data["validation_policies"] = data["test_policies"]
+    data["validation_values"] = data["test_values"]
+    
+    return data
 
 
 def supervised_training(dataset, board_size, neural_network,
@@ -70,9 +88,6 @@ def supervised_training(dataset, board_size, neural_network,
     states, policies, values = ops.reshape_data_for_network(t_states, t_policies, t_values, board_size, input_planes)
     # (N, 19, 19, 5) | (N, 362) | (N, 1)
 
-    """print("Data augmentation")
-    states, policies, values = ops.data_augmentation(states, policies, values, board_size, input_planes)"""
-
     # Shuffle
     print("Data shuffling")
     states, policies, values = data_shuffling(states, policies, values)
@@ -91,6 +106,13 @@ def supervised_training(dataset, board_size, neural_network,
         train_values = np.concatenate([values[0:b_split], values[e_split:]])
 
         validation_states, validation_policies, validation_values = test_states, test_policies, test_values
+        
+    """splitted_data = data_splitting(states, policies, values, len_dataset, test_ratio, k)
+    validation_states, validation_policies = splitted_data["validation_states"], splitted_data["validation_policies"]
+    validation_values = splitted_data["validation_values"]
+    test_states, test_policies, test_values = splitted_data["test_states"], splitted_data["test_policies"], splitted_data["test_values"]
+    train_states, train_policies, train_values = splitted_data["train_states"], splitted_data["train_policies"], splitted_data["train_values"]"""
+    
 
     # Training
     print("Training")
@@ -100,52 +122,64 @@ def supervised_training(dataset, board_size, neural_network,
     
     #neural_network.save_model()
     len_train = train_states.shape[0]
-    train_p_loss = []
+    train_p_acc = []
     train_v_loss = []
-    val_p_loss = []
-    val_v_loss = []    
+    val_p_acc = []
+    val_v_loss = []
+    losses = []
     total_it = 0
     
+    t0 = time()
     for ep in range(epoch):
         batch_loss, batch_p_acc, batch_v_err = [], [], []
         for it in range(len_train // batch_size):
             # Get batch
             batch_states, batch_policies, batch_values = get_batch(train_states, train_policies, train_values, batch_size, len_train)
             idx = np.random.randint(low=0, high=8)
+            t01 = time()
             batch_states, batch_policies, batch_values = ops.data_augmentation(batch_states, batch_policies, batch_values, board_size, input_planes, idx=idx)
+            t11 = time()
+            #print("data augmentation %.3g" % (t11 - t01))
 
             # Train model on this batch
+            t02 = time()
             loss, p_acc, v_err = neural_network.train(batch_states, batch_policies, batch_values, total_it)
+            t12 = time()
             total_it += 1
             batch_loss.append(loss)
             batch_p_acc.append(p_acc)
             batch_v_err.append(v_err)
+            #print("train %.3g" % (t12 - t02))
     
         # Print results
+        t1 = time()
+        p_acc, v_err, loss = mean(batch_p_acc), mean(batch_v_err), mean(batch_loss)
         print(neural_network.get_learning_rate(total_it))
         print("\n#####################")
-        print("# Epoch {} / {}: \nloss = {}".format(ep, epoch, mean(batch_loss)))
+        print("# Epoch {} / {}: (%.3g sec) \nloss = {}".format(ep, epoch, loss) % (t1 - t0))
         print("##############")
-        print("# TRAINING  :\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(mean(batch_p_acc), mean(batch_v_err)))
+        print("# TRAINING  :\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(p_acc, v_err))
 
         if test_size != 0:
-            val_p_acc, val_v_err, p_out, v_out = neural_network.feed_forward_accuracies(validation_states,
-                                                                                        validation_policies,
-                                                                                        validation_values,
-                                                                                        ep)
+            vali_p_acc, vali_v_err, _, _ = neural_network.feed_forward_accuracies(validation_states,
+                                                                                    validation_policies,
+                                                                                    validation_values,
+                                                                                    ep)
             print("##############")
-            print("# VALIDATION:\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(val_p_acc,
-                                                                                             val_v_err))
+            print("# VALIDATION:\npolicy accuracy = {:.4f}\nvalue  error    = {:.4f}".format(vali_p_acc,
+                                                                                             vali_v_err))
             print("#####################")
-            val_p_loss.append(val_p_acc)
-            val_v_loss.append(val_v_err)
-            train_p_loss.append(p_acc)
+            val_p_acc.append(vali_p_acc)
+            val_v_loss.append(vali_v_err)
+            train_p_acc.append(p_acc)
             train_v_loss.append(v_err)
+            losses.append(loss)
             np.savez("loss_epoch",
-                     t_p_loss=train_p_loss,
+                     t_p_acc=train_p_acc,
                      t_v_loss=train_v_loss,
-                     v_p_loss=val_p_loss,
-                     v_v_loss=val_v_loss)
+                     v_p_acc=val_p_acc,
+                     v_v_loss=val_v_loss,
+                     loss=losses)
         print()
 
         """if ep % save_frequency == 0:
