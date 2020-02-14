@@ -2,7 +2,6 @@ import os
 
 import numpy as np
 import tensorflow as tf
-from libgoban import IGame
 from tensorflow.contrib.layers import xavier_initializer
 
 
