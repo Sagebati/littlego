@@ -55,14 +55,14 @@ num_blocks = 5  # each block has 2 conv layers
 
 # - Policy head parameters
 p_filters = 32 # {2, 32}
-print(p_filters)
+print("p_filters= ", p_filters)
 p_kernel_size = 1               # F
 p_stride = 1                    # S
 p_activation = tf.nn.softmax    # output policy activation
 
 # - Value head parametersd
 v_filters = 32 # {1, 32}
-print(v_filters)
+print("v_filters= ",v_filters)
 v_kernel_size = 1           # F
 v_stride = 1                # S
 v_activation = tf.nn.tanh   # output value activation
