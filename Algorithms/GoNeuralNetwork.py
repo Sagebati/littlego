@@ -6,8 +6,6 @@ import tensorflow as tf
 import ops
 from SarstReplayMemory import SarstReplayMemory
 
-
-
 #################################################
 # Hyper-Parameters
 #################################################
@@ -18,9 +16,9 @@ activation = tf.nn.leaky_relu
 # activation = tf.nn.elu
 # activation = tf.nn.relu
 
-batch_size = 32             # total batch size
-memory_capacity = 500000    # The size of the SarstReplayMemory class
-useLSTM = False             # let False | TODO - implement LSTM
+batch_size = 32  # total batch size
+memory_capacity = 500000  # The size of the SarstReplayMemory class
+useLSTM = False  # let False | TODO - implement LSTM
 trace_length = 1
 
 # weight_initializer = tf.truncated_normal_initializer()
@@ -38,34 +36,34 @@ momentum = 0.9
 
 # - Regularization
 l2_beta = 0.002
-print(l2_beta)
+print("l2_beta= ", l2_beta)
 useBatchNorm = True
-drop_out = 0.                   # conv drop out
-head_drop_out = drop_out        # dense drop out
+drop_out = 0.  # conv drop out
+head_drop_out = drop_out  # dense drop out
 use_gradient_clipping = False
-clip_by_norm = True             # or by value
+clip_by_norm = True  # or by value
 gradient_clipping_norm = 5.0
 
 # - Conv "Tower" parameters
 input_planes = 5
 filters = 64
-kernel_size = 3 # F
-stride = 1      # S
+kernel_size = 3  # F
+stride = 1  # S
 num_blocks = 5  # each block has 2 conv layers
 
 # - Policy head parameters
-p_filters = 32 # {2, 32}
+p_filters = 32  # {2, 32}
 print("p_filters= ", p_filters)
-p_kernel_size = 1               # F
-p_stride = 1                    # S
-p_activation = tf.nn.softmax    # output policy activation
+p_kernel_size = 1  # F
+p_stride = 1  # S
+p_activation = tf.nn.softmax  # output policy activation
 
 # - Value head parametersd
-v_filters = 32 # {1, 32}
-print("v_filters= ",v_filters)
-v_kernel_size = 1           # F
-v_stride = 1                # S
-v_activation = tf.nn.tanh   # output value activation
+v_filters = 32  # {1, 32}
+print("v_filters= ", v_filters)
+v_kernel_size = 1  # F
+v_stride = 1  # S
+v_activation = tf.nn.tanh  # output value activation
 v_dense_size = 256
 
 # --- MCTS parameters ---
@@ -131,7 +129,6 @@ class GoNeuralNetwork:
         self.neural_network()
         print("Initialized - Neural Network")
 
-
     #################################################
     # Neural Network
     #################################################
@@ -189,20 +186,20 @@ class GoNeuralNetwork:
             value_conv = ops.conv_layer(conv, v_filters, v_kernel_size, v_stride, activation, "value_conv",
                                         useBatchNorm, drop_out, self.is_train, weight_initializer)
             value_conv = tf.contrib.layers.flatten(value_conv)
-            value_out = ops.basic_layer(value_conv, value_shape, activation, "value", False, head_drop_out, self.is_train, 
+            value_out = ops.basic_layer(value_conv, value_shape, activation, "value", False, head_drop_out, self.is_train,
                                         weight_initializer=weight_initializer)
             self.value_out = ops.basic_layer(value_out, value_out_shape, v_activation, "value_out", False, 0.0, self.is_train)
 
     # ----- Optimizer -----
     def _learning_rate_scheduling(self):
         if decay_learning_rate:
-            lr = tf.maximum(learning_rate_min, 
-							tf.train.exponential_decay(learning_rate,
-                                                    self.global_step,
-                                                    learning_rate_decay_steps,
-                                                    learning_rate_decay))
+            lr = tf.maximum(learning_rate_min,
+                            tf.train.exponential_decay(learning_rate,
+                                                       self.global_step,
+                                                       learning_rate_decay_steps,
+                                                       learning_rate_decay))
         else:
-            lr = tf.add(learning_rate, 0) # to make it a tf tensor
+            lr = tf.add(learning_rate, 0)  # to make it a tf tensor
         return lr
 
     def _gradient_optimization(self, opt):
@@ -234,7 +231,7 @@ class GoNeuralNetwork:
             loss_p = tf.reduce_mean(
                 tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.target_p, logits=self.policy_out))
             self.loss_op = tf.add(loss_v, loss_p)
-            
+
             # L2 regularization loss
             if l2_beta != 0.:
                 l2 = l2_beta * tf.add_n([tf.nn.l2_loss(v) for v in tf.trainable_variables()
@@ -281,7 +278,7 @@ class GoNeuralNetwork:
         _, loss, p_acc, v_err = self.session.run(
             [self.optimizer, self.loss_op, self.policy_accuracy, self.value_error],
             {self.network_inputs['GoNeuralNetwork']: state,
-             self.target_v: target_v,  
+             self.target_v: target_v,
              self.target_p: target_p,
              self.is_train: True,
              self.global_step: global_step
@@ -311,7 +308,7 @@ class GoNeuralNetwork:
         p_acc, v_err, p_out, v_out = self.session.run(
             [self.policy_accuracy, self.value_error, self.policy_out_prob, self.value_out],
             {self.network_inputs['GoNeuralNetwork']: state,
-             self.target_v: target_v, 
+             self.target_v: target_v,
              self.target_p: target_p,
              self.is_train: False,
              self.global_step: global_step
@@ -379,7 +376,6 @@ class GoNeuralNetwork:
 
         return p, v
 
-
     #################################################
     # Save & Restore 
     #################################################
@@ -446,8 +442,7 @@ class GoNeuralNetwork:
 
     def restore_memory(self, memoryFile):
         self.replay_memory.restore_memory(memoryFile)
-        
-    
+
     #################################################
     # Getter and Setter
     #################################################
