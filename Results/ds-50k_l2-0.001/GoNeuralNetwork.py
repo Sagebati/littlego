@@ -37,7 +37,7 @@ learning_rate_min = 0.000001
 momentum = 0.9
 
 # - Regularization
-l2_beta = 0.002
+l2_beta = 0.001
 print(l2_beta)
 useBatchNorm = True
 drop_out = 0.                   # conv drop out
@@ -136,13 +136,13 @@ class GoNeuralNetwork:
     # Neural Network
     #################################################
     def neural_network(self):
-        # Construct the network
+        # Construct the two networks with identical architectures
         self.build_network('GoNeuralNetwork')
 
-        # Create the optimizer of the model
+        # create the optimizer in the model
         self.build_optimizer()
 
-        # Initialize all these variables
+        # initialize all these variables, mostly with xavier initializers
         init_op = tf.global_variables_initializer()
 
         # Ready to train
@@ -173,25 +173,48 @@ class GoNeuralNetwork:
             value_conv_out_size = ops.conv_out_size(tower_conv_out_size, v_kernel_size, 0, v_stride) * v_filters
             policy_conv_out_size = ops.conv_out_size(tower_conv_out_size, p_kernel_size, 0, p_stride) * p_filters
 
-            # - Declare dense shape
+            # - Declare weights and biases
             policy_shape = [policy_conv_out_size, self.policy_size]
             value_shape = [value_conv_out_size, v_dense_size]
             value_out_shape = [v_dense_size, 1]
+            weights = {
+                'policy': tf.get_variable('w_policy', shape=[policy_conv_out_size, self.policy_size],
+                                          initializer=tf.contrib.layers.xavier_initializer()),
+                'value': tf.get_variable('w_value', shape=[value_conv_out_size, v_dense_size],
+                                         initializer=weight_initializer),
+                'value_out': tf.get_variable('w_value_out', shape=[v_dense_size, 1],
+                                             initializer=tf.contrib.layers.xavier_initializer()
+                                             # tf.truncated_normal_initializer()
+                                             )
+            }
+            biases = {
+                'policy': tf.get_variable('b_policy', shape=[self.policy_size],
+                                          initializer=tf.constant_initializer(0.0)),
+                'value': tf.get_variable('b_value', shape=[v_dense_size],
+                                         initializer=tf.constant_initializer(0.0)),
+                'value_out': tf.get_variable('b_value_out', shape=[1],
+                                             initializer=tf.constant_initializer(0.0))
+            }
 
             # - Policy head
             policy_conv = ops.conv_layer(conv, p_filters, p_kernel_size, p_stride, activation, "policy_conv",
                                          useBatchNorm, drop_out, self.is_train, weight_initializer)
             policy_conv = tf.contrib.layers.flatten(policy_conv)
-            self.policy_out = ops.basic_layer(policy_conv, policy_shape, tf.identity, "policy", False, 0.0, self.is_train)
+            self.policy_out = ops.basic_layer(policy_conv, weights["policy"], biases["policy"], tf.identity, False, 0.0,
+                                              self.is_train)
+            """self.policy_out = ops.basic_layer(policy_conv, policy_shape, tf.identity, "policy", False, 0.0, self.is_train)"""
             self.policy_out_prob = p_activation(self.policy_out)
 
             # - Value head
             value_conv = ops.conv_layer(conv, v_filters, v_kernel_size, v_stride, activation, "value_conv",
                                         useBatchNorm, drop_out, self.is_train, weight_initializer)
             value_conv = tf.contrib.layers.flatten(value_conv)
-            value_out = ops.basic_layer(value_conv, value_shape, activation, "value", False, head_drop_out, self.is_train, 
-                                        weight_initializer=weight_initializer)
-            self.value_out = ops.basic_layer(value_out, value_out_shape, v_activation, "value_out", False, 0.0, self.is_train)
+            value_out = ops.basic_layer(value_conv, weights["value"], biases["value"], activation, False, head_drop_out,
+                                        self.is_train)
+            self.value_out = ops.basic_layer(value_out, weights["value_out"], biases["value_out"], v_activation, False,
+                                             0.0, self.is_train)                                        
+            """value_out = ops.basic_layer(value_conv, value_shape, activation, "value", False, head_drop_out, self.is_train)"""
+            """self.value_out = ops.basic_layer(value_out, value_out_shape, v_activation, "value_out", False, 0.0, self.is_train)"""
 
     # ----- Optimizer -----
     def _learning_rate_scheduling(self):
@@ -260,7 +283,7 @@ class GoNeuralNetwork:
             self.value_accuracy = 1. - tf.reduce_mean(tf.abs(tf.subtract(self.target_v, self.value_out))) / 2.
             self.value_error = loss_v
 
-    # ----- Training -----
+    # ----- Minibatch -----
     def run_minibatch(self):
         if self.replay_memory.memory_size >= batch_size * trace_length:
             state, target_p, target_v = self.replay_memory.get_batch_sample(batch_size)
@@ -425,7 +448,8 @@ class GoNeuralNetwork:
                  memory_loss=self.memory_loss,
                  total_games=self.total_games)
         print("=== Parameters saved as \"{}.npz\" ===\n".format(hyperparametersFile))
-        # TODO - save rnn_state_train
+
+    # TODO - save rnn_state_train
 
     def save_memory(self, memoryFile):
         self.replay_memory.save_memory(memoryFile)
@@ -443,6 +467,8 @@ class GoNeuralNetwork:
             self.memory_loss = npzFile['memory_loss']
             self.total_games = npzFile['total_games']
             print("=== Parameters restored from \"{}.npz\" ===\n".format(hyperparametersFile))
+        """else:
+            self.copy_prediction_parameters_to_target_network()"""
 
     def restore_memory(self, memoryFile):
         self.replay_memory.restore_memory(memoryFile)

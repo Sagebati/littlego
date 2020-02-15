@@ -54,7 +54,7 @@ stride = 1      # S
 num_blocks = 5  # each block has 2 conv layers
 
 # - Policy head parameters
-p_filters = 32 # {2, 32}
+p_filters = 16 # {2, 32}
 print(p_filters)
 p_kernel_size = 1               # F
 p_stride = 1                    # S
