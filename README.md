@@ -9,6 +9,10 @@ Go IA.
 libgoban
 
 
+## Introduction
+
+The goal of this project is to build an AI Agent for the game of Go based on AlphaGo Zero. The main idea is to reduce as most as possible the computation power needed and the computation time for that kind of agent by for example reducing the neural network architecture.
+
 ## Methodology
 
 ### Main differences between AlphaGo Zero and LittleGo
@@ -19,8 +23,8 @@ The neural network architecture consists in a "tower" of residual convolutionnal
 | ------------------------------- |:-----------:|:--------:|
 | Number of residual blocks       | 19 or 39    | 5        |
 | Number of convolutional filters | 256         | 64       |
-| Optimizer                       | RMSProp     | Adam     |
 | Input planes                    | 17          | 5        |
+| Optimizer                       | RMSProp     | Adam     |
 
 
 ## Experiments and Results
