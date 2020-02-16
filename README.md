@@ -40,7 +40,9 @@ In order to validate their architecture DeepMind trains the neural network with 
 | LittleGo               | 75,000           |
 | LittleGo first_version | 25,000           |
 
-#### Move Prediction Accuracy
+Below, the results tables for move prediction accuracy and game outcome prediction error, the important value to analyze is "KGS test".
+
+#### Move prediction accuracy
 
 |                        | KGS train | KGS test | GoKifu validation |
 | ---------------------- |:---------:|:--------:|:-----------------:|
@@ -61,7 +63,7 @@ In order to validate their architecture DeepMind trains the neural network with 
 
 ### Reinforcement Learning
 
-#### Move Prediction Accuracy
+#### Move prediction accuracy
 
 |                        | KGS train | KGS test | GoKifu validation |
 | ---------------------- |:---------:|:--------:|:-----------------:|
