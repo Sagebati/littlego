@@ -9,36 +9,61 @@ Go IA.
 libgoban
 
 
+## Methodology
+
+### Main differences between AlphaGo Zero and LittleGo
+
+The neural network architecture consists in a "tower" of residual convolutionnal blocks where each block has 2 convolutionnnal layers and a residual connection connecting the input of the block. Then the network is separated in two heads, one for the prediction of move and the other for the prediction of the game outcome (evaluation function).
+
+|                                 | AlphaGoZero | LittleGo |
+| ------------------------------- |:-----------:|:--------:|
+| Number of residual blocks       | 19 or 39    | 5        |
+| Number of convolutional filters | 256         | 64       |
+| Optimizer                       | RMSProp     | Adam     |
+| Input planes                    | 17          | 5        |
+
+
 ## Experiments and Results
 
 ### Supervised Learning
 
-**Move Prediction Accuracy**
+In order to validate their architecture DeepMind trains the neural network with supervised learning on the KGS dataset (https://u-go.net/gamerecords/) for training and testing set and GoKifu dataset (http://gokifu.com/) for validation set. Due to our computation limitation we were, for the moment, only able to train on a subset of the KGS dataset.
+
+|                        | KGS dataset size |
+| ---------------------- |:----------------:|
+| AlphaGo Zero           | ~ 30,000,000     |
+| AlphaGo                | ~ 30,000,000     |
+| LittleGo               | 75,000           |
+| LittleGo first_version | 25,000           |
+
+#### Move Prediction Accuracy
 
 |                        | KGS train | KGS test | GoKifu validation |
 | ---------------------- |:---------:|:--------:|:-----------------:|
 | AlphaGo Zero           | 62.0      | 60.4     | 54.3              |
 | AlphaGo                | 59.1      | 55.9     | -                 |
+| LittleGo               | 62.9      | 38.6     | -                 |
 | LittleGo first_version | 43.8      | 37.0     | -                 |
 
-**Game outcome prediction error**
+#### Game outcome prediction error
 
 |                        | KGS train | KGS test | GoKifu validation |
 | ---------------------- |:---------:|:--------:|:-----------------:|
 | AlphaGo Zero           | 0.177     | 0.185    | 0.207             |
 | AlphaGo                | 0.19      | 0.37     | -                 |
+| LittleGo               | 0.15      | 0.195    | -                 |
 | LittleGo first_version | 0.27      | 0.26     | -                 |
+
 
 ### Reinforcement Learning
 
-
-**Move Prediction Accuracy**
+#### Move Prediction Accuracy
 
 |                        | KGS train | KGS test | GoKifu validation |
 | ---------------------- |:---------:|:--------:|:-----------------:|
 | AlphaGo Zero           | -         | -        | 49.0              |
 
-**Game outcome prediction error**
+#### Game outcome prediction error
 
 |                        | KGS train | KGS test | GoKifu validation |
 | ---------------------- |:---------:|:--------:|:-----------------:|
