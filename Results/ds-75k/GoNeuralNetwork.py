@@ -33,11 +33,10 @@ learning_rate_decay = 0.1
 learning_rate_decay_steps = 100e3
 learning_rate_min = 0.000001
 momentum = 0.9
-value_loss_weight = 1. # supervised training only
 
 # - Regularization
 l2_beta = 0.002
-print("l2_beta =", l2_beta)
+print("l2_beta= ", l2_beta)
 useBatchNorm = True
 drop_out = 0.  # conv drop out
 head_drop_out = drop_out  # dense drop out
@@ -54,14 +53,14 @@ num_blocks = 5  # each block has 2 conv layers
 
 # - Policy head parameters
 p_filters = 32  # {2, 32}
-print("p_filters =", p_filters)
+print("p_filters= ", p_filters)
 p_kernel_size = 1  # F
 p_stride = 1  # S
 p_activation = tf.nn.softmax  # output policy activation
 
 # - Value head parametersd
 v_filters = 32  # {1, 32}
-print("v_filters =", v_filters)
+print("v_filters= ", v_filters)
 v_kernel_size = 1  # F
 v_stride = 1  # S
 v_activation = tf.nn.tanh  # output value activation
@@ -88,9 +87,7 @@ report_frequency = 1
 
 class GoNeuralNetwork:
 
-    def __init__(self, board_size, training_mode="reinforcement"):
-        # training_mode = {"reinforcement", "supervised"}
-
+    def __init__(self, board_size):
         print("--- Initialization of Neural Network")
 
         # ----------------------------------------
@@ -108,9 +105,6 @@ class GoNeuralNetwork:
         self.total_iterations = 0
         self.temp_loss = 0
         self.total_games = 0
-        
-        if training_mode == "reinforcement":
-            value_loss_weight = 1.
         # ----------------------------------------
 
         with tf.device('/gpu:0'):
@@ -233,7 +227,7 @@ class GoNeuralNetwork:
             self.target_p = tf.placeholder(tf.float32, shape=[None, self.policy_size], name="target_p")
 
             # Loss
-            loss_v = tf.multiply(tf.reduce_mean(tf.square(tf.subtract(self.target_v, self.value_out))), value_loss_weight)
+            loss_v = tf.reduce_mean(tf.square(tf.subtract(self.target_v, self.value_out)))
             loss_p = tf.reduce_mean(
                 tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.target_p, logits=self.policy_out))
             self.loss_op = tf.add(loss_v, loss_p)

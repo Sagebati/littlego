@@ -32,11 +32,11 @@ def data_splitting(states, policies, values, len_dataset, test_ratio, k):
     data["train_states"] = np.concatenate([states[0:b_split], states[e_split:]])
     data["train_policies"] = np.concatenate([policies[0:b_split], policies[e_split:]])
     data["train_values"] = np.concatenate([values[0:b_split], values[e_split:]])
-    
+
     data["validation_states"] = data["test_states"]
     data["validation_policies"] = data["test_policies"]
     data["validation_values"] = data["test_values"]
-    
+
     return data
 
 
@@ -47,7 +47,7 @@ def supervised_training(dataset, board_size, neural_network,
                         batch_size=32,
                         data_size=25000,
                         k_fold=0,
-                        test_ratio=1 / 30,
+                        test_ratio=1 / 30 # From [Silver et al., 2016] Mastering the game of Go with deep neural networks and tree search
                         ):
     # Training parameters
     k = k_fold  # k-fold cross validation
@@ -69,7 +69,7 @@ def supervised_training(dataset, board_size, neural_network,
         # pre-shuffle
         print("(pre-shuffle)")
         t_states, t_policies, t_values = data_shuffling(t_states, t_policies, t_values)
-    
+
         print("(subsample dataset)", data_size)
         t_states = t_states[:data_size]
         t_policies = t_policies[:data_size]
@@ -106,29 +106,25 @@ def supervised_training(dataset, board_size, neural_network,
         train_values = np.concatenate([values[0:b_split], values[e_split:]])
 
         validation_states, validation_policies, validation_values = test_states, test_policies, test_values
-        
-    """splitted_data = data_splitting(states, policies, values, len_dataset, test_ratio, k)
-    validation_states, validation_policies = splitted_data["validation_states"], splitted_data["validation_policies"]
-    validation_values = splitted_data["validation_values"]
-    test_states, test_policies, test_values = splitted_data["test_states"], splitted_data["test_policies"], splitted_data["test_values"]
-    train_states, train_policies, train_values = splitted_data["train_states"], splitted_data["train_policies"], splitted_data["train_values"]"""
-    
+
+        """splitted_data = data_splitting(states, policies, values, len_dataset, test_ratio, k)
+        validation_states = splitted_data["validation_states"]
+        validation_policies = splitted_data["validation_policies"]
+        validation_values = splitted_data["validation_values"]
+        test_states, test_policies, test_values = splitted_data["test_states"], splitted_data["test_policies"], splitted_data["test_values"]
+        train_states, train_policies, train_values = splitted_data["train_states"], splitted_data["train_policies"], splitted_data["train_values"]"""
 
     # Training
     print("Training")
     print(train_states.shape)
     print(train_policies.shape)
     print(train_values.shape)
-    
+
     #neural_network.save_model()
     len_train = train_states.shape[0]
-    train_p_acc = []
-    train_v_loss = []
-    val_p_acc = []
-    val_v_loss = []
-    losses = []
+    train_p_acc, train_v_loss, val_p_acc, val_v_loss, losses = [], [], [], [], []
     total_it = 0
-    
+
     t0 = time()
     for ep in range(epoch):
         batch_loss, batch_p_acc, batch_v_err = [], [], []
@@ -136,20 +132,20 @@ def supervised_training(dataset, board_size, neural_network,
             # Get batch
             batch_states, batch_policies, batch_values = get_batch(train_states, train_policies, train_values, batch_size, len_train)
             idx = np.random.randint(low=0, high=8)
-            t01 = time()
+            #t01 = time()
             batch_states, batch_policies, batch_values = ops.data_augmentation(batch_states, batch_policies, batch_values, board_size, input_planes, idx=idx)
-            t11 = time()
+            #t11 = time()
             #print("data augmentation %.3g" % (t11 - t01))
 
             # Train model on this batch
-            t02 = time()
+            #t02 = time()
             loss, p_acc, v_err = neural_network.train(batch_states, batch_policies, batch_values, total_it)
-            t12 = time()
+            #t12 = time()
+            #print("train %.3g" % (t12 - t02))
             total_it += 1
             batch_loss.append(loss)
             batch_p_acc.append(p_acc)
             batch_v_err.append(v_err)
-            #print("train %.3g" % (t12 - t02))
     
         # Print results
         t1 = time()

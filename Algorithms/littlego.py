@@ -78,7 +78,7 @@ def supervised(path_dataset, board_size, epoch, report_freq, data_size):
     # Supervised training
     from GoNeuralNetwork import GoNeuralNetwork
     from supervised import supervised_training
-    neural_network = GoNeuralNetwork(board_size)
+    neural_network = GoNeuralNetwork(board_size, training_mode="supervised")
     supervised_training(path_dataset, board_size, neural_network, epoch, report_freq, 
                         data_size=data_size)
 
