@@ -19,12 +19,13 @@ The goal of this project is to build an AI Agent for the game of Go based on Alp
 
 The neural network architecture consists in a "tower" of residual convolutionnal blocks where each block has 2 convolutionnnal layers and a residual connection connecting the input of the block. Then the network is separated in two heads, one for the prediction of move and the other for the prediction of the game outcome (evaluation function).
 
-|                                 | AlphaGoZero | LittleGo |
-| ------------------------------- |:-----------:|:--------:|
-| Number of residual blocks       | 20 or 40    | 5        |
-| Number of convolutional filters | 256         | 64       |
-| Input planes                    | 17          | 5        |
-| Optimizer                       | RMSProp     | Adam     |
+|                                 | AlphaGoZero            | LittleGo  |
+| ------------------------------- |:----------------------:|:---------:|
+| Number of residual blocks       | 20 or 40               | 5         |
+| Number of convolutional filters | 256                    | 64        |
+| Input planes                    | 17                     | 5         |
+| Optimizer                       | RMSProp                | Adam      |
+| Number of parameters            | 24,019,048 (20 blocks) <br> 47,642,728 (40 blocks) | 7,517,931 |
 
 
 ## Experiments and Results
