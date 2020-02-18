@@ -166,7 +166,7 @@ class GoNeuralNetwork:
             # Conv Layers "Tower"
             conv = ops.conv_layer(self.network_inputs[scope_name], filters, kernel_size, stride, activation,
                                   "conv_first", useBatchNorm, drop_out, self.is_train, weight_initializer)
-            #conv = tf.nn.pool(conv, window_shape=[2, 2], pooling_type="AVG", strides=[2, 2], padding='SAME')
+            conv = tf.nn.pool(conv, window_shape=[2, 2], pooling_type="AVG", strides=[2, 2], padding='SAME')
             tower_input_size = int(conv.shape[1] * conv.shape[2])
             for i in range(num_blocks):
                 conv = ops.residual_conv_block(conv, filters, kernel_size, stride, activation, "conv" + str(i),

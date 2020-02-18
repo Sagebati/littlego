@@ -166,15 +166,13 @@ class GoNeuralNetwork:
             # Conv Layers "Tower"
             conv = ops.conv_layer(self.network_inputs[scope_name], filters, kernel_size, stride, activation,
                                   "conv_first", useBatchNorm, drop_out, self.is_train, weight_initializer)
-            #conv = tf.nn.pool(conv, window_shape=[2, 2], pooling_type="AVG", strides=[2, 2], padding='SAME')
-            tower_input_size = int(conv.shape[1] * conv.shape[2])
             for i in range(num_blocks):
                 conv = ops.residual_conv_block(conv, filters, kernel_size, stride, activation, "conv" + str(i),
                                                useBatchNorm, drop_out, self.is_train, weight_initializer)
 
             # Policy and value heads
             # - Compute conv output size
-            tower_conv_out_size = ops.conv_out_size(tower_input_size, kernel_size, 1, stride)
+            tower_conv_out_size = ops.conv_out_size(self.input_size, kernel_size, 1, stride)
             # TODO - manage correctly padding (if stride and/or filter size change)
             value_conv_out_size = ops.conv_out_size(tower_conv_out_size, v_kernel_size, 0, v_stride) * v_filters
             policy_conv_out_size = ops.conv_out_size(tower_conv_out_size, p_kernel_size, 0, p_stride) * p_filters
@@ -183,13 +181,15 @@ class GoNeuralNetwork:
             policy_shape = [policy_conv_out_size, self.policy_size]
             value_shape = [value_conv_out_size, v_dense_size]
             value_out_shape = [v_dense_size, 1]
+            
+            policy_shape2 = [policy_conv_out_size, 512]
+            policy_shape = [512, self.policy_size]
 
             # - Policy head
             policy_conv = ops.conv_layer(conv, p_filters, p_kernel_size, p_stride, activation, "policy_conv",
                                          useBatchNorm, drop_out, self.is_train, weight_initializer)
-            policy_conv = ops.conv_layer(policy_conv, p_filters, p_kernel_size, p_stride, activation, "policy_conv2",
-                                         useBatchNorm, drop_out, self.is_train, weight_initializer)
             policy_conv = tf.contrib.layers.flatten(policy_conv)
+            policy_conv = ops.dense_layer(policy_conv, policy_shape2, activation, "policy2", False, head_drop_out, self.is_train)
             self.policy_out = ops.dense_layer(policy_conv, policy_shape, tf.identity, "policy", False, 0.0, self.is_train)
             self.policy_out_prob = p_activation(self.policy_out)
 
