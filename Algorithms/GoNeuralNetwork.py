@@ -113,10 +113,9 @@ class GoNeuralNetwork:
             value_loss_weight = 1.
         # ----------------------------------------
 
-        with tf.device('/gpu:0'):
             # with tf.Session() as session: # this line doesn't work when python is embedded
-            session = tf.Session()
-            self.init_network(session)
+        session = tf.Session()
+        self.init_network(session)
 
         self.saver = tf.train.Saver()  # tf.all_variables()
         self.restore_model()
